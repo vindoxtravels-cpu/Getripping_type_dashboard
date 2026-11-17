@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get Ripping · Video Automation Dashboard</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="page">
+  <nav class="stages" id="stages" aria-label="Workflow stages"></nav>
+
+  <main class="window">
+    <header class="chrome">
+      <div class="dots"><i></i><i></i><i></i></div>
+      <div class="tabs" id="tabs" role="tablist"></div>
+      <button class="gear" id="openSettings" title="Automation settings" aria-label="Automation settings">⚙</button>
+    </header>
+    <section id="view"></section>
+    <footer class="foot">
+      <span class="mono" id="stageLabel"></span>
+      <button class="next" id="nextBtn"></button>
+    </footer>
+  </main>
+</div>
+
+<dialog id="settings">
+  <form method="dialog" class="settings-form">
+    <h3>Automation settings</h3>
+    <p class="muted">Point Produce at your video pipeline (n8n, Make, Zapier, or your own API). The dashboard POSTs the locked script as JSON. Leave empty to run the built-in simulation.</p>
+    <label>Webhook URL
+      <input id="setWebhook" type="url" placeholder="https://your-n8n.example.com/webhook/video">
+    </label>
+    <label>Auth header (optional)
+      <input id="setAuth" type="text" placeholder="Bearer sk-…">
+    </label>
+    <label>Handle
+      <input id="setHandle" type="text" placeholder="getripping">
+    </label>
+    <div class="row end">
+      <button value="cancel" class="btn ghost">Cancel</button>
+      <button value="save" class="btn dark" id="saveSettings">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>
