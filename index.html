@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Reel Studio · Video Workflow Dashboard</title>
-<meta name="theme-color" content="#0a0a0b">
+<title>Reel Studio · Short-video workflow</title>
+<meta name="theme-color" content="#07070d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -13,47 +13,58 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<div class="page">
-  <nav class="stages" id="stages" aria-label="Workflow stages"></nav>
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
 
-  <main class="window">
-    <header class="chrome">
-      <div class="dots"><i></i><i></i><i></i></div>
-      <div class="tabs" id="tabs" role="tablist"></div>
-      <button class="gear" id="openSettings" title="Settings" aria-label="Settings">⚙</button>
+<div class="app">
+  <aside class="rail">
+    <div class="brand"><span class="logo" aria-hidden="true"></span><b>Reel Studio</b></div>
+    <nav class="nav" id="nav" aria-label="Workflow"><span class="glider" id="glider"></span></nav>
+    <div class="rail-foot">
+      <button class="igcard" id="igCard" type="button"></button>
+      <button class="rail-link" id="openSettings" type="button">Settings &amp; automation</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="top">
+      <div class="top-text">
+        <div class="eyebrow" id="stageLabel"></div>
+        <h1 id="stageTitle"></h1>
+        <p id="stageSub"></p>
+      </div>
+      <button class="cta" id="nextBtn" type="button"></button>
     </header>
-    <section id="view"></section>
-    <footer class="foot">
-      <span class="mono" id="stageLabel"></span>
-      <button class="next" id="nextBtn"></button>
-    </footer>
-  </main>
+    <section id="view" class="view" aria-live="polite"></section>
+  </div>
 </div>
 
+<canvas id="confetti" aria-hidden="true"></canvas>
+
 <dialog id="settings">
-  <form method="dialog" class="settings-form">
-    <h3>Settings</h3>
-    <p class="muted">Point Produce at your video pipeline (n8n, Make, Zapier, or your own API). The dashboard POSTs the locked script, style and virality score as JSON. Leave it empty to run the built-in simulation.</p>
+  <form method="dialog" class="dlg">
+    <h3>Settings &amp; automation</h3>
+    <p class="muted">Point Studio at your own video pipeline (n8n, Make, Zapier or an API) and it will POST the script, style and virality score as JSON. Leave it empty to render videos right here in your browser.</p>
     <label>Webhook URL
       <input id="setWebhook" type="url" placeholder="https://your-n8n.example.com/webhook/video">
     </label>
     <label>Auth header (optional)
       <input id="setAuth" type="text" placeholder="Bearer sk-…" autocomplete="off">
     </label>
-    <label>Instagram handle
+    <label>Handle shown on videos
       <input id="setHandle" type="text" placeholder="yourbrand">
+      <small class="muted" id="handleNote"></small>
     </label>
     <div class="row end">
       <button type="button" class="linkbtn danger" id="resetAll" style="margin-right:auto">Reset all data</button>
       <button value="cancel" class="btn ghost">Cancel</button>
-      <button value="save" class="btn dark">Save</button>
+      <button value="save" class="btn primary">Save</button>
     </div>
   </form>
 </dialog>
 
 <dialog id="schedule">
-  <form method="dialog" class="settings-form">
-    <h3>Schedule post</h3>
+  <form method="dialog" class="dlg">
+    <h3>Schedule a post</h3>
     <p class="muted" id="schTitle"></p>
     <p class="warn" id="schWarn" hidden>This video hasn't been rendered yet. You can still reserve the slot.</p>
     <div class="row">
@@ -64,11 +75,48 @@
     <label class="check"><input id="schTrial" type="checkbox"> Post as a trial reel (shown to non-followers first)</label>
     <div class="row end">
       <button value="cancel" class="btn ghost" formnovalidate>Cancel</button>
-      <button value="save" class="btn dark">Schedule</button>
+      <button value="save" class="btn primary">Schedule</button>
     </div>
   </form>
 </dialog>
 
+<dialog id="igDialog">
+  <form method="dialog" class="dlg" id="igForm">
+    <h3>Connect your Instagram account</h3>
+    <p class="muted">Works with Business and Creator accounts. Studio reads your insights through Meta's official API. It only reads, never posts, and your token goes straight from this browser to Meta.</p>
+    <label>Login type
+      <select id="igHost">
+        <option value="graph.instagram.com">Instagram Login (recommended)</option>
+        <option value="graph.facebook.com">Facebook Login</option>
+      </select>
+    </label>
+    <label>Access token
+      <input id="igToken" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your access token">
+    </label>
+    <label>Instagram user ID <small class="muted">(only needed for Facebook Login)</small>
+      <input id="igId" type="text" inputmode="numeric" autocomplete="off" placeholder="17841400000000000">
+    </label>
+    <label class="check"><input id="igRemember" type="checkbox"> Remember this token on this device</label>
+    <p class="note" id="igMsg" role="status"></p>
+    <details class="how">
+      <summary>How do I get a token?</summary>
+      <ol>
+        <li>Open <b>developers.facebook.com</b>, create an app (type: Business) and add the <b>Instagram</b> product.</li>
+        <li>Under <b>API setup with Instagram login</b>, add your Instagram professional account and click <b>Generate token</b>.</li>
+        <li>Allow <code>instagram_business_basic</code> and <code>instagram_business_manage_insights</code>, then paste the token here.</li>
+      </ol>
+      <p>Tokens expire (about 60 days for long-lived ones). Anyone with the token can read your insights, so don't save it on a shared computer.</p>
+    </details>
+    <div class="row end">
+      <button type="button" class="linkbtn danger" id="igDisconnect" style="margin-right:auto" hidden>Disconnect</button>
+      <button value="cancel" class="btn ghost">Close</button>
+      <button type="button" class="btn primary" id="igTest">Test &amp; connect</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="video.js"></script>
+<script src="instagram.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
