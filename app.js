@@ -1,7 +1,7 @@
 /* Reel Studio: discover → script → make → schedule → insights → remix. No build step. */
 (() => {
 'use strict';
-const RV = window.ReelVideo, IG = window.IG;
+const RV = window.ReelVideo, IG = window.IG, AI = window.AI, Tools = window.Tools;
 const THEMES = RV.THEMES, themeByName = RV.themeByName;
 
 /* ---------- icons ---------- */
@@ -32,18 +32,20 @@ const ICON = {
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   film2: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M10 8.5v7l6-3.5z" fill="currentColor"/>',
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/>',
+  wand: '<path d="M4 20L16 8M14 4l1 3 3 1-3 1-1 3-1-3-3-1 3-1z"/>',
+  brain: '<path d="M9 4a3 3 0 00-3 3 3 3 0 00-2 5 3 3 0 002 5 3 3 0 003 3h1V4zM15 4a3 3 0 013 3 3 3 0 012 5 3 3 0 01-2 5 3 3 0 01-3 3h-1V4z"/>',
 };
 const svg = (n, s = 18) => `<svg class="i" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg>`;
 
 const STAGES = [
-  { id: 'feed', name: 'Discover', icon: 'compass', title: 'Find what’s winning', sub: 'Swipe through reels that are working in your niche and keep the best ones.' },
-  { id: 'script', name: 'Scripts', icon: 'pen', title: 'Write it your way', sub: 'Rework a winner into your own script. The checks and score update as you type.' },
-  { id: 'production', name: 'Studio', icon: 'film', title: 'Make the video', sub: 'Pick a style and a pace, add a voice-over if you have one, then render a real video file.' },
-  { id: 'calendar', name: 'Calendar', icon: 'calendar', title: 'Plan your week', sub: 'Schedule each video to your feed or as a trial reel.' },
-  { id: 'analytics', name: 'Insights', icon: 'chart', title: 'See what worked', sub: 'Views, reach, followers and a breakdown of every reel.' },
+  { id: 'feed', name: 'Discover', icon: 'compass', title: 'Find what’s winning', sub: 'Swipe through reels that are working in your niche, or paste a reel link to turn it into a script.' },
+  { id: 'script', name: 'Scripts', icon: 'pen', title: 'Write it your way', sub: 'Rework a winner into your own script. Paste a whole caption into a line and it splits itself.' },
+  { id: 'production', name: 'Studio', icon: 'film', title: 'Make the video', sub: 'Pick a style and effects, let Claude direct the scenes, then render a real video file.' },
+  { id: 'calendar', name: 'Calendar', icon: 'calendar', title: 'Plan your week', sub: 'Schedule each video, then link it to its live reel so Studio learns what works.' },
+  { id: 'analytics', name: 'Insights', icon: 'chart', title: 'See what worked', sub: 'Live numbers from one or many Instagram accounts, compared with the period before.' },
   { id: 'carousels', name: 'Remix', icon: 'layers', title: 'Remix your winners', sub: 'Turn a winning video into a carousel and a batch of fresh hooks.' },
 ];
-
 const FEED = [
   { id: 1, title: 'Free trials are killing your SaaS', views: '2.4M', mult: 31, g: ['#0f766e', '#052e2b'], why: ['Hook in 1 s', 'Names the enemy', 'A number up front'] },
   { id: 2, title: 'The pricing mistake everyone makes', views: '1.1M', mult: 14, g: ['#8b5cf6', '#2a1260'], why: ['Pattern interrupt', 'Specific mistake', 'Payoff in 10 s'] },
@@ -60,11 +62,12 @@ const GRADS = [['#8b5cf6', '#1e1b4b'], ['#059669', '#022c22'], ['#e11d48', '#3b0
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const words = (t) => String(t).trim().match(/\S+/g) || [];
+const words = Tools.words;
 const fmt = (n) => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1).replace(/\.0$/, '') + 'K' : String(Math.round(n));
 const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const slug = (t) => String(t).replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase().slice(0, 40) || 'video';
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const parseDay = (s) => new Date(s + 'T00:00:00');
@@ -73,7 +76,9 @@ const rng = (seed) => () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 const hash = (s) => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 2147483647; return h || 1; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-function toast(m) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = m; document.body.append(t); setTimeout(() => t.remove(), 2400); }
+const shortTitle = (t) => words(String(t).replace(/[.!?:]+$/, '')).slice(0, 7).join(' ') || 'Untitled script';
+function toast(m) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = m; document.body.append(t); setTimeout(() => t.remove(), 2800); }
+function busy(btn, on, label) { if (!btn) return; if (on) { btn.dataset.label = btn.innerHTML; btn.disabled = true; btn.innerHTML = `<span class="spin"></span> ${label || 'Working…'}`; } else { btn.disabled = false; if (btn.dataset.label) btn.innerHTML = btn.dataset.label; } }
 
 function confetti(x = innerWidth / 2, y = innerHeight / 3) {
   if (reduced()) return;
@@ -94,20 +99,22 @@ function confetti(x = innerWidth / 2, y = innerHeight / 3) {
 /* ---------- state ---------- */
 const defaultProd = () => ({ steps: [0, 0, 0, 0], render: 0, status: 'idle', log: [], videoUrl: null });
 const defaultState = () => ({
-  v: 3, handle: 'yourbrand', stage: 0,
+  v: 4, handle: 'yourbrand', niche: 'SaaS founders', stage: 0,
   saved: [], selectedSaved: null, skipped: [], history: [], customReels: [],
-  scripts: [], activeId: null,
-  posts: null, weekOffset: 0, selPost: null, statsPost: null,
-  settings: { webhook: '', auth: '' }, range: 30, igRange: 30, music: true,
+  scripts: [], activeId: null, posts: null, weekOffset: 0, selPost: null, statsPost: null,
+  settings: { webhook: '', auth: '' }, range: 30, igRange: 30, music: true, insightsAcct: '', learn: { arms: {}, log: [] },
 });
 let S;
 try { S = Object.assign(defaultState(), JSON.parse(localStorage.getItem('gr_state') || '{}')); } catch (e) { S = defaultState(); }
+if (!S.learn || !S.learn.arms) S.learn = { arms: {}, log: [] };
 const wps = (sc) => PACES[sc.style.pace] || 2.6;
 function normalizeScript(sc) {
   sc.style = sc.style || {};
   if (!PACES[sc.style.pace]) sc.style.pace = 'Balanced';
   delete sc.style.format;
   if (!themeByName(sc.style.theme)) sc.style.theme = THEMES[0].name;
+  sc.style.fx = Object.assign({}, RV.DEFAULT_FX, sc.style.fx || {});
+  if (!Array.isArray(sc.dir)) sc.dir = [];
   const keep = sc.prod && sc.prod.status === 'done' && sc.prod.videoUrl;
   sc.prod = keep ? sc.prod : defaultProd();
   return sc;
@@ -119,27 +126,27 @@ S.scripts.forEach(normalizeScript);
 const save = () => { try { localStorage.setItem('gr_state', JSON.stringify(S)); } catch (e) { /* storage blocked */ } };
 save();
 
-const RT = new Map();  // script id → { video:{url,ext,size,duration}, abort }
+const RT = new Map();  // script id → { video, abort }
 const VO = new Map();  // script id → { buffer, name, duration }
-const handle = () => (IG.connected() && IG.profile && IG.profile.username) || S.handle;
+const acct = () => IG.active();
+const handle = () => (acct() && acct().username) || S.handle;
 const allReels = () => [...S.customReels, ...FEED];
 const videoOf = (sc) => { const r = RT.get(sc.id); if (r && r.video) return r.video; return sc.prod.videoUrl ? { url: sc.prod.videoUrl, ext: 'mp4', external: true } : null; };
 function revokeVideo(id) { const r = RT.get(id); if (r && r.video && r.video.url) { URL.revokeObjectURL(r.video.url); r.video = null; } }
 function invalidate(sc) { revokeVideo(sc.id); sc.prod = defaultProd(); }
 
 /* ---------- script library ---------- */
+function scriptFrom(blocks, title, source) {
+  return normalizeScript({ id: uid(), title: title || 'Untitled script', source: source || 'Blank', style: { theme: THEMES[0].name, pace: 'Balanced' }, blocks });
+}
 function newScript(item) {
-  const t = item ? item.title : 'Stop giving out free trials';
-  return normalizeScript({
-    id: uid(), title: t, source: item ? 'From Discover' : 'Blank', style: { theme: THEMES[0].name, pace: 'Balanced' },
-    blocks: [
-      { type: 'hook', text: "If you're giving out a free trial in 2026, you might as well be lighting money on fire." },
-      { type: 'body', text: 'Do this instead.' },
-      { type: 'body', text: 'Most of us are building with AI now, which means every free trial user costs real money in tokens and compute.' },
-      { type: 'body', text: "So that's not a free trial. You're paying THEM to use your product." },
-      { type: 'comment', text: 'And if you want the free $50k per month playbook, comment "PLAYBOOK" and follow for more.' },
-    ],
-  });
+  return scriptFrom([
+    { type: 'hook', text: "If you're giving out a free trial in 2026, you might as well be lighting money on fire." },
+    { type: 'body', text: 'Do this instead.' },
+    { type: 'body', text: 'Most of us are building with AI now, which means every free trial user costs real money in tokens and compute.' },
+    { type: 'body', text: "So that's not a free trial. You're paying THEM to use your product." },
+    { type: 'comment', text: 'And if you want the free $50k per month playbook, comment "PLAYBOOK" and follow for more.' },
+  ], item ? item.title : 'Stop giving out free trials', item ? 'From Discover' : 'Blank');
 }
 function addScript(sc) { S.scripts.unshift(sc); S.activeId = sc.id; save(); return sc; }
 function active() {
@@ -190,6 +197,19 @@ function ringHtml(score, size = 120) {
     <text x="60" y="62" text-anchor="middle" class="ring-n">${score}</text><text x="60" y="84" text-anchor="middle" class="ring-s">/ 100</text></svg>`;
 }
 
+/* ---------- learning: a bandit over creative choices, rewarded by real engagement ---------- */
+const picksOf = (sc) => ({ theme: sc.style.theme, pace: sc.style.pace, caption: sc.style.fx.caption, transition: sc.style.fx.transition });
+function learnedPicks() {
+  const arms = S.learn.arms; if (!Tools.totalResults(arms)) return null;
+  const top = (dim, opts) => Tools.rank(arms[dim], opts)[0];
+  return { theme: top('theme', THEMES.map((t) => t.name)), pace: top('pace', Object.keys(PACES)), caption: top('caption', RV.FX_OPTIONS.caption), transition: top('transition', RV.FX_OPTIONS.transition) };
+}
+function applyLearned(sc) {
+  const l = learnedPicks(); if (!l) return false;
+  sc.style.theme = l.theme.option; sc.style.pace = l.pace.option; sc.style.fx.caption = l.caption.option; sc.style.fx.transition = l.transition.option; return true;
+}
+const liveReels = () => IG.list().flatMap((a) => { const g = IG.get(a.id); return g && g.data ? g.data.reels.map((r) => Object.assign({ acctName: a.username }, r)) : []; });
+
 /* ---------- shell ---------- */
 let previews = [];
 const stopPreviews = () => { previews.forEach((p) => p.stop()); previews = []; };
@@ -202,16 +222,19 @@ function moveGlider() {
   g.style.setProperty('--gx', on.offsetLeft + 'px'); g.style.setProperty('--gy', on.offsetTop + 'px');
   g.style.setProperty('--gw', on.offsetWidth + 'px'); g.style.setProperty('--gh', on.offsetHeight + 'px');
 }
-function renderIgCard() {
-  const c = $('#igCard'), p = IG.profile;
-  if (IG.connected()) {
+function renderRailCards() {
+  const c = $('#igCard'), list = IG.list(), a = IG.active() && list.find((x) => x.id === IG.activeId());
+  if (a) {
     c.className = 'igcard on';
-    c.innerHTML = `<span class="av">${p && p.avatar ? `<img src="${esc(p.avatar)}" alt="" referrerpolicy="no-referrer">` : esc((handle()[0] || 'y').toUpperCase())}</span>
-      <span class="who"><b>@${esc(handle())}</b><small><i class="dot ${IG.status === 'error' ? 'bad' : ''}"></i>${IG.status === 'error' ? 'Needs attention' : 'Connected'}</small></span>`;
+    c.innerHTML = `<span class="av">${a.avatar ? `<img src="${esc(a.avatar)}" alt="" referrerpolicy="no-referrer">` : esc((a.username[0] || 'y').toUpperCase())}</span>
+      <span class="who"><b>@${esc(a.username)}</b><small><i class="dot ${a.status === 'error' || a.status === 'notoken' ? 'bad' : ''}"></i>${a.status === 'error' || a.status === 'notoken' ? 'Needs attention' : 'Connected'}${list.length > 1 ? ` · ${list.length} accounts` : ''}</small></span>`;
   } else {
     c.className = 'igcard';
-    c.innerHTML = `<span class="av ig">${svg('camera', 18)}</span><span class="who"><b>Connect Instagram</b><small>See your real insights</small></span>`;
+    c.innerHTML = `<span class="av ig">${svg('camera', 18)}</span><span class="who"><b>Connect Instagram</b><small>Add one or more accounts</small></span>`;
   }
+  const ai = $('#aiCard'), on = AI.configured();
+  ai.className = 'igcard aicard' + (on ? ' on' : '');
+  ai.innerHTML = `<span class="av">${svg(on ? 'sparkles' : 'key', 17)}</span><span class="who"><b>${on ? 'Claude connected' : 'Add Claude API key'}</b><small>${on ? esc(AI.model()) : 'Unlocks the AI tools'}</small></span>`;
 }
 function renderChrome() {
   const st = STAGES[S.stage];
@@ -220,7 +243,7 @@ function renderChrome() {
   $('#stageTitle').textContent = st.title; $('#stageSub').textContent = st.sub;
   const nx = STAGES[S.stage + 1], nb = $('#nextBtn');
   nb.style.visibility = nx ? 'visible' : 'hidden'; nb.innerHTML = nx ? `${nx.name} ${svg('arrow', 18)}` : '';
-  renderIgCard(); moveGlider();
+  renderRailCards(); moveGlider();
 }
 function go(i) {
   S.stage = clamp(i, 0, 5); save();
@@ -237,6 +260,50 @@ function countUps() {
     (function f(now) { const k = clamp((now - t0) / d, 0, 1), e = 1 - Math.pow(1 - k, 3); el.textContent = fm(to * e); if (k < 1) requestAnimationFrame(f); })(t0);
   });
 }
+
+/* ---------- reel link import ---------- */
+const impd = $('#importDialog'); let impState = null;
+function impStatus(msg, kind) { const n = $('#impStatus'); n.textContent = msg; n.className = 'note ' + (kind || ''); }
+async function resolveReel(parsed) {
+  const out = { source: 'none', caption: '', thumb: '', mediaUrl: '', author: '', permalink: parsed.url };
+  for (const a of IG.list()) {
+    if (!a.hasData && a.status !== 'notoken') { try { await IG.refresh(a.id, S.igRange); } catch (e) { /* account unavailable */ } }
+    const hit = IG.findByUrl(a.id, parsed.url);
+    if (hit) { Object.assign(out, { source: 'own', caption: hit.caption, thumb: hit.thumb, mediaUrl: hit.mediaUrl, author: '@' + a.username }); return out; }
+  }
+  if (IG.connected()) {
+    try { const o = await IG.oembed(parsed.url); if (o && (o.caption || o.thumb)) { Object.assign(out, { source: 'oembed', caption: o.caption, thumb: o.thumb, author: o.author ? '@' + o.author : '' }); return out; } } catch (e) { out.oembedError = e.message; }
+  }
+  return out;
+}
+async function openImport(url, text) {
+  const parsed = Tools.parseReelUrl(url);
+  $('#impText').value = text || ''; $('#impRef').innerHTML = ''; impStatus('');
+  $('#impRewrite').checked = AI.configured(); $('#impRewrite').disabled = !AI.configured();
+  $('#impHint').innerHTML = AI.configured() ? 'Claude rewrites it with original wording, so you are not copying someone else’s script.' : `Add a Claude API key to rewrite it in your own words. <button type="button" class="linkbtn inline" id="impKey">Add key</button>`;
+  const k = $('#impKey'); if (k) k.onclick = () => { impd.close(); openApi(); };
+  impState = { url: parsed ? parsed.url : '', ref: null };
+  if (!impd.open) impd.showModal();
+  if (!parsed) { impStatus('That doesn’t look like an Instagram reel link. You can still paste text below.', 'bad'); return; }
+  impStatus('Looking up the reel…');
+  const r = await resolveReel(parsed); impState.ref = r;
+  const media = r.mediaUrl ? `<video src="${esc(r.mediaUrl)}" controls muted playsinline preload="metadata"></video>` : r.thumb ? `<img src="${esc(r.thumb)}" alt="" referrerpolicy="no-referrer">` : `<div class="noimg">${svg('film2', 26)}</div>`;
+  $('#impRef').innerHTML = `${media}<div class="refmeta"><b>${esc(r.author || 'Instagram reel')}</b><a href="${esc(r.permalink)}" target="_blank" rel="noopener">Open the original ↗</a><span class="muted small">${r.caption ? esc(r.caption.slice(0, 140)) + (r.caption.length > 140 ? '…' : '') : 'No caption loaded'}</span></div>`;
+  if (r.source === 'own') impStatus(`Found in your account ${r.author}. Caption loaded.`, 'ok');
+  else if (r.source === 'oembed') impStatus('Loaded through Instagram’s embed API.', 'ok');
+  else impStatus('Instagram doesn’t let apps read other people’s reels, so paste the caption, or what they say, below.');
+  if (r.caption && !$('#impText').value) $('#impText').value = r.caption;
+}
+$('#impGo').onclick = async (e) => {
+  const text = $('#impText').value.trim(); if (!text) { impStatus('Paste the caption or what the reel says first.', 'bad'); return; }
+  const rewrite = $('#impRewrite').checked && AI.configured(), btn = e.currentTarget; busy(btn, true, rewrite ? 'Claude is writing…' : 'Splitting…');
+  try {
+    const parts = rewrite ? await AI.scriptFromText({ text, niche: S.niche }) : Tools.splitScript(text);
+    if (!parts) throw new Error('Could not find any sentences in that text.');
+    const sc = scriptFrom(Tools.blocksFrom(parts, { addCta: true }), parts.title || shortTitle(parts.hook), rewrite ? 'Rewritten with Claude' : 'From reel link');
+    sc.ref = impState && impState.url; addScript(sc); impd.close(); toast('Script created. Hook and lines are ready to edit'); go(1);
+  } catch (err) { impStatus(err.message, 'bad'); } finally { busy(btn, false); }
+};
 
 /* ---------- 01 Discover ---------- */
 function enableDrag(el, decide) {
@@ -260,7 +327,8 @@ function viewFeed() {
   const card = (f, cls, extra) => `<div class="reel ${cls}" ${cls === 'r1' ? 'id="topReel"' : ''} style="--c1:${f.g[0]};--c2:${f.g[1]}">${extra || ''}<span class="sheen"></span><span class="play">${svg('play', 22)}</span>
     <div class="t">${esc(f.title)}</div><div class="m">${f.mult ? `<span class="mult">${svg('flame', 13)} ${f.mult}× usual</span>` : ''}<span class="views">${svg('eye', 14)} ${esc(f.views)}</span></div></div>`;
   $('#view').innerHTML = `
-  <div class="toolbar"><span class="chip">SaaS founders</span><span class="chip hot">${svg('flame', 14)} Winning in your niche</span><span class="spacer"></span>
+  <form class="importbar panel" id="importBar"><span class="ic">${svg('link', 18)}</span><input id="importUrl" placeholder="Paste an Instagram reel link to turn it into a script…" autocomplete="off"><button class="btn primary" type="submit">Import</button></form>
+  <div class="toolbar"><span class="chip">${esc(S.niche)}</span><span class="chip hot">${svg('flame', 14)} Winning in your niche</span><span class="spacer"></span>
     <button class="btn" id="addReelBtn" type="button">${svg('plus', 16)} Add reel</button><span class="chip">${svg('heart', 14)} Saved ${S.saved.length}</span></div>
   <form class="addreel panel" id="addReel" hidden>
     <input name="title" placeholder="What the reel says, e.g. Your landing page is too long" required>
@@ -313,6 +381,8 @@ function viewFeed() {
     S.customReels.unshift({ id: 'c' + uid(), title: f.title.value.trim(), url: f.url.value.trim(), views: f.views.value.trim() || '—', mult: +f.mult.value || 0, g, why: ['Your pick'] });
     save(); toast('Added to the top of your feed'); viewFeed();
   };
+  $('#importBar').onsubmit = (e) => { e.preventDefault(); const v = $('#importUrl').value.trim(); if (v) openImport(v); };
+  $('#importUrl').addEventListener('paste', () => setTimeout(() => { const v = $('#importUrl').value.trim(); if (Tools.parseReelUrl(v)) openImport(v); }, 0));
 }
 
 /* ---------- 02 Scripts ---------- */
@@ -327,14 +397,16 @@ function viewScript() {
     <div class="scripts">
       <aside class="lib">
         <button class="btn primary wide" id="newScript" type="button">${svg('plus', 16)} New script</button>
+        <button class="btn wide" id="impBtn" type="button">${svg('link', 16)} Import from reel link</button>
         ${S.scripts.map((x) => `<div class="libitem ${x.id === sc.id ? 'sel' : ''}"><button type="button" data-open="${x.id}"><b>${esc(x.title || 'Untitled')}</b><span>${mmss(seconds(x))} · ${videoOf(x) ? 'rendered' : 'draft'}</span></button>${S.scripts.length > 1 ? `<button type="button" class="x" data-rm="${x.id}" title="Delete script" aria-label="Delete script">${svg('trash', 15)}</button>` : ''}</div>`).join('')}
       </aside>
       <section class="editor panel">
         <div class="ed-head"><input class="title-in" id="sTitle" value="${esc(sc.title)}" aria-label="Script title"><span class="chip" id="dur">${mmss(seconds(sc))}</span><span class="chip blue">${svg('link', 13)} ${esc(sc.source)}</span></div>
         <div class="timeline" id="timeline" aria-hidden="true">${timelineHtml(sc)}</div>
+        <p class="tip">${svg('sparkles', 14)} Paste a whole caption into the hook line, or the line below it, and it splits into lines. Paste a reel link to import it.</p>
         <div id="blocks">${sc.blocks.map((b, i) => `
           <div class="blk ${b.type}" style="--i:${i}">${b.type !== 'body' ? `<span class="tag">${b.type === 'hook' ? 'Hook' : 'Comment'}</span>` : ''}
-            <textarea data-i="${i}" rows="1" aria-label="${b.type} line">${esc(b.text)}</textarea>
+            <textarea data-i="${i}" rows="1" aria-label="${b.type} line" placeholder="${b.type === 'hook' ? 'Start with your hook…' : b.type === 'comment' ? 'End with a comment call-to-action…' : 'One idea per line…'}">${esc(b.text)}</textarea>
             ${b.type === 'body' ? `<button class="x" type="button" data-del="${i}" title="Remove line" aria-label="Remove line">${svg('x', 15)}</button>` : ''}</div>`).join('')}
           <button class="btn" id="addLine" type="button">${svg('plus', 15)} Add line</button>
         </div>
@@ -353,12 +425,24 @@ function viewScript() {
       $('#dur').textContent = mmss(seconds(sc)); $('#timeline').innerHTML = timelineHtml(sc);
     };
     const grow = (t) => { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; };
-    $$('#blocks textarea').forEach((t) => { grow(t); t.oninput = () => { sc.blocks[+t.dataset.i].text = t.value; if (videoOf(sc) && !sc.prod.videoUrl) { invalidate(sc); } grow(t); upd(); save(); }; });
-    $$('[data-del]').forEach((b) => b.onclick = () => { sc.blocks.splice(+b.dataset.del, 1); invalidate(sc); save(); draw(); });
+    $$('#blocks textarea').forEach((t) => {
+      grow(t);
+      t.oninput = () => { sc.blocks[+t.dataset.i].text = t.value; if (videoOf(sc) && !sc.prod.videoUrl) invalidate(sc); grow(t); upd(); save(); };
+      t.onpaste = (e) => {
+        const txt = (e.clipboardData || window.clipboardData).getData('text'); if (!txt) return;
+        if (Tools.parseReelUrl(txt) && words(txt).length === 1) { e.preventDefault(); openImport(txt.trim()); return; }
+        const before = sc.blocks.length, r = Tools.splitPaste(sc.blocks, +t.dataset.i, txt, { start: t.selectionStart, end: t.selectionEnd });
+        if (!r) return; e.preventDefault(); sc.blocks = r.blocks; sc.dir = []; invalidate(sc); save(); draw();
+        const ta = $$('#blocks textarea')[r.focus]; if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+        toast(`Spread over ${r.blocks.length - before + 1} lines`);
+      };
+    });
+    $$('[data-del]').forEach((b) => b.onclick = () => { sc.blocks.splice(+b.dataset.del, 1); sc.dir = []; invalidate(sc); save(); draw(); });
     $$('[data-open]').forEach((b) => b.onclick = () => { S.activeId = b.dataset.open; save(); viewScript(); });
     $$('[data-rm]').forEach((b) => b.onclick = () => { if (!confirm('Delete this script?')) return; revokeVideo(b.dataset.rm); S.scripts = S.scripts.filter((x) => x.id !== b.dataset.rm); if (S.activeId === b.dataset.rm) S.activeId = null; save(); viewScript(); });
-    $('#newScript').onclick = () => { const n = newScript(null); n.title = 'Untitled script'; n.blocks = [{ type: 'hook', text: '' }, { type: 'body', text: '' }, { type: 'comment', text: '' }]; addScript(n); viewScript(); };
-    $('#addLine').onclick = () => { const ci = sc.blocks.findIndex((b) => b.type === 'comment'); sc.blocks.splice(ci < 0 ? sc.blocks.length : ci, 0, { type: 'body', text: '' }); invalidate(sc); save(); draw(); };
+    $('#newScript').onclick = () => { addScript(scriptFrom([{ type: 'hook', text: '' }, { type: 'body', text: '' }, { type: 'comment', text: '' }], 'Untitled script')); viewScript(); };
+    $('#impBtn').onclick = () => openImport('');
+    $('#addLine').onclick = () => { const ci = sc.blocks.findIndex((b) => b.type === 'comment'); sc.blocks.splice(ci < 0 ? sc.blocks.length : ci, 0, { type: 'body', text: '' }); sc.dir = []; invalidate(sc); save(); draw(); };
     $('#sTitle').oninput = (e) => { sc.title = e.target.value; save(); };
     $('#toProd').onclick = () => go(2);
     upd();
@@ -367,7 +451,7 @@ function viewScript() {
 }
 
 /* ---------- 03 Studio (real video generation) ---------- */
-const PSTEPS = [['Script', 'file'], ['Voice', 'mic'], ['Visuals', 'layers'], ['Edit', 'film']];
+const PSTEPS = [['Script'], ['Voice'], ['Visuals'], ['Edit']];
 const planFor = (sc) => { const vo = VO.get(sc.id); return RV.plan(sc, { handle: handle(), wps: wps(sc), audioDuration: vo ? vo.duration : 0 }); };
 const onProd = (sc) => onStage('production') && S.activeId === sc.id && $('#steps');
 function plog(sc, m) { sc.prod.log.push(new Date().toLocaleTimeString() + '  ' + m); sc.prod.log = sc.prod.log.slice(-30); if (onProd(sc)) { const l = $('#log'); l.innerHTML = sc.prod.log.map(esc).join('<br>'); l.scrollTop = 1e9; } }
@@ -378,8 +462,10 @@ function paint(sc, eta) {
   $('#rs').textContent = P.status === 'done' ? 'Ready' : P.status === 'running' ? (eta != null ? `Rendering in real time · about ${Math.max(1, Math.ceil(eta))} s left` : 'Working…') : 'Not started';
 }
 function viewProduction() {
-  const sc = active(), P = sc.prod, vo = VO.get(sc.id), v = videoOf(sc), p = planFor(sc), vir = virality(sc), running = P.status === 'running';
-  const canRec = RV.supported();
+  const sc = active(), P = sc.prod, vo = VO.get(sc.id), v = videoOf(sc), p = planFor(sc), vir = virality(sc), running = P.status === 'running', fx = sc.style.fx;
+  const canRec = RV.supported(), ai = AI.configured(), lrn = learnedPicks(), dis = running ? 'disabled' : '';
+  const seg = (key, label) => `<div class="fxrow"><span>${label}</span><div class="seg" data-fx="${key}">${RV.FX_OPTIONS[key].map((o) => `<button type="button" data-v="${o}" class="${fx[key] === o ? 'on' : ''}" ${dis}>${cap(o)}</button>`).join('')}</div></div>`;
+  const sw = (key, label) => `<label class="switch"><input type="checkbox" data-fxsw="${key}" ${fx[key] ? 'checked' : ''} ${dis}><span class="knob"></span><span>${label}</span></label>`;
   $('#view').innerHTML = `
   <div class="studio">
     <div class="stage-phone">
@@ -390,21 +476,34 @@ function viewProduction() {
       <section class="panel">
         <div class="ph"><h3>${esc(sc.title)}</h3><span class="score-pill ${scoreClass(vir.score)}">Virality ${vir.score}</span></div>
         <div class="lab">Style</div>
-        <div class="themes" id="themes">${THEMES.map((t) => `<button type="button" class="theme ${t.name === sc.style.theme ? 'on' : ''}" data-theme="${esc(t.name)}" style="--bg:${t.bg};--fg:${t.fg};--ac:${t.ac}" title="${esc(t.name)}" ${running ? 'disabled' : ''}><i></i><span>${esc(t.name)}</span></button>`).join('')}</div>
+        <div class="themes" id="themes">${THEMES.map((t) => `<button type="button" class="theme ${t.name === sc.style.theme ? 'on' : ''}" data-theme="${esc(t.name)}" style="--bg:${t.bg};--fg:${t.fg};--ac:${t.ac}" title="${esc(t.name)}" ${dis}><i></i><span>${esc(t.name)}</span></button>`).join('')}</div>
         <div class="opts">
-          <div><div class="lab">Pace</div><div class="seg" id="pace">${Object.keys(PACES).map((k) => `<button type="button" data-pace="${k}" class="${k === sc.style.pace ? 'on' : ''}" ${running ? 'disabled' : ''}>${k}</button>`).join('')}</div></div>
-          <label class="switch"><input type="checkbox" id="music" ${S.music ? 'checked' : ''} ${running ? 'disabled' : ''}><span class="knob"></span><span>${svg('music', 15)} Background beat</span></label>
+          <div><div class="lab">Pace</div><div class="seg" id="pace">${Object.keys(PACES).map((k) => `<button type="button" data-pace="${k}" class="${k === sc.style.pace ? 'on' : ''}" ${dis}>${k}</button>`).join('')}</div></div>
+          <label class="switch"><input type="checkbox" id="music" ${S.music ? 'checked' : ''} ${dis}><span class="knob"></span><span>${svg('music', 15)} Background beat</span></label>
         </div>
+        <div class="learned">${lrn ? `<span>${svg('brain', 16)} Learned from your results (${Tools.totalResults(S.learn.arms)} posts): <b>${esc(lrn.theme.option)}</b> · <b>${esc(lrn.pace.option)}</b> · <b>${esc(lrn.caption.option)}</b> captions</span><button type="button" class="btn sm" id="applyLearned" ${dis}>Use these</button>`
+          : `<span class="muted">${svg('brain', 16)} Studio learns which styles earn more. After posting, link the live reel on the Calendar.</span>`}</div>
+      </section>
+      <section class="panel">
+        <div class="ph"><h3>Effects</h3><div class="row presets">${Object.keys(RV.PRESETS).map((n) => `<button type="button" class="chip btnchip" data-preset="${n}" ${dis}>${n}</button>`).join('')}</div></div>
+        ${seg('caption', 'Captions')}${seg('transition', 'Transitions')}${seg('camera', 'Camera')}${seg('particles', 'Particles')}
+        <div class="switches">${sw('motifs', 'Scene icons')}${sw('glow', 'Glow')}${sw('chroma', 'Color fringe')}${sw('grain', 'Film grain')}</div>
+      </section>
+      <section class="panel director">
+        <div class="ph"><h3>${svg('wand', 17)} AI director</h3>${ai ? `<button type="button" class="btn primary" id="direct" ${dis}>${svg('sparkles', 16)} Direct with Claude</button>` : `<button type="button" class="btn" id="direct">${svg('key', 16)} Add Claude API key</button>`}</div>
+        <p class="muted">${ai ? 'Claude reads your script and picks an icon and highlighted words for every scene, plus the style, pace and effects.' : 'Without a key, Studio still picks icons from keywords. Add your Claude API key and it directs every scene for you, imports scripts from reels and writes new ones from your best performers.'}</p>
+        ${sc.dir.some((d) => d && (d.motif || (d.emphasis && d.emphasis.length))) ? `<p class="small okline">${svg('check', 14)} Directed by Claude: ${sc.dir.filter((d) => d && d.motif && d.motif !== 'none').length} icons, ${sc.dir.reduce((n, d) => n + ((d && d.emphasis && d.emphasis.length) || 0), 0)} highlighted words.</p>` : ''}
       </section>
       <section class="panel">
         <div class="ph"><h3>Voice-over</h3></div>
-        ${vo ? `<div class="vo"><span class="vo-ic">${svg('mic', 18)}</span><div><b>${esc(vo.name)}</b><small>${mmss(vo.duration)} · scenes are timed to it</small></div><button type="button" class="btn ghost sm" id="voClear" ${running ? 'disabled' : ''}>Remove</button></div>`
-          : `<p class="muted">Add a recording of you reading the script (MP3, WAV or M4A). The scenes will be timed to your voice.</p><label class="btn upload"><input type="file" id="vo" accept="audio/*" hidden ${running ? 'disabled' : ''}>${svg('mic', 16)} Upload voice-over</label>`}
+        ${vo ? `<div class="vo"><span class="vo-ic">${svg('mic', 18)}</span><div><b>${esc(vo.name)}</b><small>${mmss(vo.duration)} · scenes are timed to it</small></div><button type="button" class="btn ghost sm" id="voClear" ${dis}>Remove</button></div>`
+          : `<p class="muted">Add a recording of you reading the script (MP3, WAV or M4A). The scenes will be timed to your voice.</p><label class="btn upload"><input type="file" id="vo" accept="audio/*" hidden ${dis}>${svg('mic', 16)} Upload voice-over</label>`}
       </section>
       <section class="panel">
         <div class="ph"><h3>Render</h3><div class="row"><button class="btn" id="cfg" type="button">${svg('link', 15)} Webhook${S.settings.webhook ? ' ✓' : ''}</button>
           ${running ? '<button class="btn danger" id="cancel" type="button">Cancel</button>' : `<button class="btn primary" id="run" type="button" ${canRec || S.settings.webhook ? '' : 'disabled'}>${svg('film2', 16)} ${v ? 'Render again' : 'Render video'}</button>`}</div></div>
-        <div id="steps">${PSTEPS.map((s, i) => `<div class="step"><span class="dotx"></span><b>${s[0]}</b><span class="d">${i === 0 ? 'Locked, word for word' : i === 1 ? (vo ? 'Your voice-over' : S.music ? 'Synthesized beat' : 'No audio') : i === 2 ? `${p.scenes.length} scenes, ${esc(sc.style.theme)}` : 'Captions, motion and cuts'}</span></div>`).join('')}</div>
+        ${ai ? '' : `<div class="nudge">${svg('key', 16)}<span>Tip: add your <b>Claude API key</b> to direct scenes, import scripts and make videos like your best reels.</span><button type="button" class="btn sm" id="nudgeKey">Add key</button></div>`}
+        <div id="steps">${PSTEPS.map((s, i) => `<div class="step"><span class="dotx"></span><b>${s[0]}</b><span class="d">${i === 0 ? 'Locked, word for word' : i === 1 ? (vo ? 'Your voice-over' : S.music ? 'Synthesized beat' : 'No audio') : i === 2 ? `${p.scenes.length} scenes, ${esc(sc.style.theme)}` : `${cap(fx.caption)} captions, ${fx.transition} cuts`}</span></div>`).join('')}</div>
         <div class="renderbox"><div class="top"><span id="rs"></span><b id="rp">${P.render}%</b></div><div class="meter"><i id="rm" style="width:${P.render}%"></i></div></div>
         ${canRec || S.settings.webhook ? '' : '<p class="warn">This browser cannot record video. Use Chrome, Edge, Firefox or Safari 14.1+, or set a webhook.</p>'}
         <div class="log" id="log">${P.log.map(esc).join('<br>')}</div>
@@ -418,10 +517,27 @@ function viewProduction() {
         : `<div class="ph"><h3>Your video</h3></div><p class="muted">Press <b>Render video</b>. A ${mmss(p.duration)} reel takes about ${mmss(p.duration)} to render, because it is recorded in real time. Keep this tab open.</p>`}</section>
     </div>
   </div>`;
-  if (!running) previews.push(RV.preview($('#pv'), p)); else { const c = $('#pv'); c.getContext('2d').fillStyle = '#000'; }
-  $$('#themes [data-theme]').forEach((b) => b.onclick = () => { sc.style.theme = b.dataset.theme; invalidate(sc); save(); viewProduction(); });
-  $$('#pace [data-pace]').forEach((b) => b.onclick = () => { sc.style.pace = b.dataset.pace; invalidate(sc); save(); viewProduction(); });
+  if (!running) previews.push(RV.preview($('#pv'), p));
+  const change = (fn) => { fn(); invalidate(sc); save(); viewProduction(); };
+  $$('#themes [data-theme]').forEach((b) => b.onclick = () => change(() => { sc.style.theme = b.dataset.theme; }));
+  $$('#pace [data-pace]').forEach((b) => b.onclick = () => change(() => { sc.style.pace = b.dataset.pace; }));
+  $$('[data-fx] button').forEach((b) => b.onclick = () => change(() => { sc.style.fx[b.parentElement.dataset.fx] = b.dataset.v; }));
+  $$('[data-fxsw]').forEach((i) => i.onchange = () => change(() => { sc.style.fx[i.dataset.fxsw] = i.checked; }));
+  $$('[data-preset]').forEach((b) => b.onclick = () => change(() => { Object.assign(sc.style.fx, RV.PRESETS[b.dataset.preset]); }));
+  const al = $('#applyLearned'); if (al) al.onclick = () => change(() => { applyLearned(sc); toast('Applied what Studio learned'); });
   $('#music').onchange = (e) => { S.music = e.target.checked; save(); viewProduction(); };
+  $('#direct').onclick = async (e) => {
+    if (!AI.configured()) { openApi(); return; }
+    const btn = e.currentTarget; busy(btn, true, 'Claude is directing…');
+    try {
+      const d = await AI.direct({ title: sc.title, blocks: sc.blocks, themes: THEMES.map((t) => t.name), fx: RV.FX_OPTIONS });
+      sc.dir = sc.blocks.map((b, i) => { const s = d.scenes[i] || {}; return { motif: RV.MOTIFS.includes(s.motif) ? s.motif : s.motif === 'none' ? 'none' : null, emphasis: Array.isArray(s.emphasis) ? s.emphasis.slice(0, 3).map(String) : [] }; });
+      if (themeByName(d.theme)) sc.style.theme = d.theme; if (PACES[d.pace]) sc.style.pace = d.pace;
+      Object.entries(d.fx || {}).forEach(([k, val]) => { if (RV.FX_OPTIONS[k] && RV.FX_OPTIONS[k].includes(val)) sc.style.fx[k] = val; });
+      invalidate(sc); save(); toast('Claude directed the video'); viewProduction();
+    } catch (err) { busy(btn, false); toast(err.message); }
+  };
+  const nk = $('#nudgeKey'); if (nk) nk.onclick = openApi;
   const vi = $('#vo'); if (vi) vi.onchange = async (e) => {
     const f = e.target.files[0]; if (!f) return;
     try {
@@ -439,7 +555,7 @@ function viewProduction() {
 function buildPayload(sc) {
   const th = themeByName(sc.style.theme);
   return { handle: handle(), title: sc.title, duration: mmss(seconds(sc)), script: sc.blocks, text: sc.blocks.map((b) => b.text).join('\n'), wordCount: scriptWords(sc).length, format: '9:16',
-    style: { theme: th.name, pace: sc.style.pace, colors: { bg: th.bg, fg: th.fg, accent: th.ac } }, virality: virality(sc).score, createdAt: new Date().toISOString() };
+    style: { theme: th.name, pace: sc.style.pace, effects: sc.style.fx, colors: { bg: th.bg, fg: th.fg, accent: th.ac } }, scenes: sc.dir, virality: virality(sc).score, createdAt: new Date().toISOString() };
 }
 async function renderLocal(sc) {
   const P = sc.prod, vo = VO.get(sc.id), rt = RT.get(sc.id) || {}; RT.set(sc.id, rt);
@@ -461,8 +577,8 @@ async function runPipeline(sc) {
   const P = sc.prod; if (P.status === 'running') return;
   revokeVideo(sc.id); Object.assign(P, defaultProd(), { status: 'running' }); save();
   if (onProd(sc)) viewProduction();
-  plog(sc, `Pipeline started · ${sc.style.theme} · ${sc.style.pace}`);
-  const finish = (ok) => { if (!ok) { P.status = 'idle'; P.steps = [0, 0, 0, 0]; } save(); if (onProd(sc)) { viewProduction(); } if (ok) confetti(); };
+  plog(sc, `Pipeline started · ${sc.style.theme} · ${sc.style.pace} · ${sc.style.fx.caption} captions`);
+  const finish = (ok) => { if (!ok) { P.status = 'idle'; P.steps = [0, 0, 0, 0]; } save(); if (onProd(sc)) viewProduction(); if (ok) confetti(); };
   const { webhook, auth } = S.settings;
   try {
     if (webhook) {
@@ -478,9 +594,7 @@ async function runPipeline(sc) {
       } catch (e) { plog(sc, 'Webhook failed: ' + e.message + ' (CORS or network). Rendering here instead.'); }
     }
     await renderLocal(sc); finish(true);
-  } catch (e) {
-    plog(sc, e.message === 'aborted' ? 'Cancelled' : 'Render failed: ' + e.message); finish(false);
-  }
+  } catch (e) { plog(sc, e.message === 'aborted' ? 'Cancelled' : 'Render failed: ' + e.message); finish(false); }
 }
 function pollStatus(sc, url) {
   const P = sc.prod; let n = 0;
@@ -509,20 +623,29 @@ function ensurePosts() {
   });
   S.selPost = S.posts[0].id;
 }
+function learnBox(sel) {
+  const sc = S.scripts.find((x) => x.id === sel.scriptId); if (sel.status !== 'posted' || !sc) return '';
+  if (sel.learned) return `<div class="learnbox"><div class="lab">Learning</div><p class="small okline">${svg('brain', 15)} Studio learned from this post. Result score ${sel.reward}/100.</p></div>`;
+  const rows = liveReels();
+  return `<div class="learnbox"><div class="lab">Teach Studio</div><p class="muted small">Link this video to its live reel so Studio can learn which styles earn more likes, saves and shares.</p>
+    ${rows.length ? `<select id="lrReel">${rows.map((r) => `<option value="${esc(r.acct)}|${esc(r.id)}">@${esc(r.acctName)} · ${esc(r.title)}</option>`).join('')}</select>` : '<p class="muted small">Connect an Instagram account and open Insights to load your reels.</p>'}
+    <input id="lrUrl" placeholder="…or paste the reel link" autocomplete="off"><button type="button" class="btn primary wide" id="lrGo">${svg('brain', 16)} Learn from this reel</button></div>`;
+}
 function viewCalendar() {
   ensurePosts();
   const ws = weekStart(S.weekOffset), days = Array.from({ length: 7 }, (_, i) => { const d = new Date(ws); d.setDate(ws.getDate() + i); return d; });
   const inWeek = S.posts.filter((p) => days.some((d) => ymd(d) === p.date)), posted = inWeek.filter((p) => p.status === 'posted').length;
   const sel = S.posts.find((p) => p.id === S.selPost && inWeek.includes(p)) || inWeek[0], today = ymd(new Date());
   const side = sel ? (() => {
-    const sc = S.scripts.find((x) => x.id === sel.scriptId), cap = sc ? sc.blocks.map((b) => b.text).filter(Boolean) : [sel.title];
+    const sc = S.scripts.find((x) => x.id === sel.scriptId), capt = sc ? sc.blocks.map((b) => b.text).filter(Boolean) : [sel.title];
     return `<div class="who-row"><span class="av">${esc((handle()[0] || 'y').toUpperCase())}</span><b>@${esc(handle())}</b></div>
-      <p class="cap">${esc(cap[0])}</p>
-      ${cap.length > 1 ? `<p class="muted small">${esc(cap[cap.length - 1].slice(0, 110))}${cap[cap.length - 1].length > 110 ? '…' : ''}</p>` : ''}
+      <p class="cap">${esc(capt[0])}</p>
+      ${capt.length > 1 ? `<p class="muted small">${esc(capt[capt.length - 1].slice(0, 110))}${capt[capt.length - 1].length > 110 ? '…' : ''}</p>` : ''}
       <div class="trow"><span>Feed</span><button type="button" class="toggle ${sel.feed ? 'on' : ''}" id="tFeed" aria-label="Post to feed" aria-pressed="${sel.feed}"></button></div>
       <div class="trow"><span>Trial reel</span><button type="button" class="toggle ${sel.trial ? 'on' : ''}" id="tTrial" aria-label="Post as trial reel" aria-pressed="${sel.trial}"></button></div>
       ${sel.status === 'posted' ? '' : `<div class="trow"><span>When</span><span class="when"><input type="date" id="pDate" value="${sel.date}"><input type="time" id="pTime" value="${sel.time}"></span></div>`}
       <button type="button" class="postbtn ${sel.status === 'posted' ? 'done' : 'go'}" id="postNow">${sel.status === 'posted' ? '✓ Posted ' + DAY_NAMES[parseDay(sel.date).getDay()] + ' ' + time12(sel.time) : 'Mark as posted'}</button>
+      ${learnBox(sel)}
       <button type="button" class="linkbtn" id="rmPost">Remove from calendar</button>`;
   })() : `<p class="muted">Nothing scheduled this week.</p><button type="button" class="btn primary wide" id="schedHere">Schedule the active script</button>`;
   $('#view').innerHTML = `
@@ -534,7 +657,7 @@ function viewCalendar() {
       return `<div class="day ${ps.some((p) => sel && p.id === sel.id) ? 'sel' : ''} ${ymd(d) === today ? 'today' : ''}" style="--i:${di}"><div class="h">${DAY_NAMES[d.getDay()]} <span>${d.getDate()}</span></div>
         ${ps.map((p) => { const sc = S.scripts.find((x) => x.id === p.scriptId), th = themeByName(sc ? sc.style.theme : p.theme) || THEMES[0];
           return `<button type="button" class="slot" data-post="${p.id}"><div class="thumb" style="--bg:${th.bg};--fg:${th.fg};--ac:${th.ac}"><span>${esc(p.title)}</span></div>
-          <span class="t">${time12(p.time)}</span><span class="chip ${p.status === 'posted' ? 'good' : ''}">${p.status === 'posted' ? '✓ Posted' : p.trial ? 'Trial reel' : 'Scheduled'}</span></button>`; }).join('') || `<button type="button" class="slot empty" data-add="${ymd(d)}" aria-label="Add post">+</button>`}
+          <span class="t">${time12(p.time)}</span><span class="chip ${p.status === 'posted' ? 'good' : ''}">${p.status === 'posted' ? (p.learned ? '✓ Posted · learned' : '✓ Posted') : p.trial ? 'Trial reel' : 'Scheduled'}</span></button>`; }).join('') || `<button type="button" class="slot empty" data-add="${ymd(d)}" aria-label="Add post">+</button>`}
       </div>`; }).join('')}</div>
     <aside class="panel side">${side}</aside>
   </div>`;
@@ -552,6 +675,16 @@ function viewCalendar() {
   if (pt) pt.onchange = () => { if (pt.value) { sel.time = pt.value; save(); viewCalendar(); } };
   $('#postNow').onclick = () => { if (sel.status === 'posted') return; const n = new Date(); sel.status = 'posted'; sel.date = ymd(n); sel.time = `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`; S.weekOffset = 0; S.statsPost = sel.id; save(); toast('Marked as posted'); confetti(); viewCalendar(); };
   $('#rmPost').onclick = () => { S.posts = S.posts.filter((p) => p.id !== sel.id); S.selPost = null; save(); viewCalendar(); };
+  const lg = $('#lrGo'); if (lg) lg.onclick = () => {
+    const sc = S.scripts.find((x) => x.id === sel.scriptId), url = $('#lrUrl').value.trim(); let reel = null, aid = null;
+    if (url) { for (const a of IG.list()) { const h = IG.findByUrl(a.id, url); if (h) { reel = h; aid = a.id; break; } } if (!reel) { toast('That reel isn’t in your connected accounts’ recent posts.'); return; } }
+    else { const v = $('#lrReel') && $('#lrReel').value; if (v) { const [ai, ri] = v.split('|'), g = IG.get(ai); reel = g && g.data && g.data.reels.find((r) => r.id === ri); aid = ai; } }
+    if (!reel) { toast('Pick a reel or paste its link.'); return; }
+    const g = IG.get(aid), med = Tools.median(g.data.reels.map(Tools.engagement)), reward = Tools.rewardFrom(Tools.engagement(reel), med);
+    Tools.learn(S.learn.arms, picksOf(sc), reward);
+    sel.learned = true; sel.reward = Math.round(reward * 100); S.learn.log.push({ title: sc.title, reward: sel.reward, at: Date.now(), picks: picksOf(sc) });
+    save(); toast(`Studio learned from it (score ${sel.reward}/100)`); viewCalendar();
+  };
 }
 const sdlg = $('#schedule'); let schedFor = null;
 function openSchedule(scriptId, date) {
@@ -588,40 +721,94 @@ function postStats(p) {
 function sampleModel(days) {
   const f = Math.round(15057 * days / 30), ser = series(days, 42 + days, Math.max(f, 1200)), views = days === 7 ? 540000 : days === 90 ? 8100000 : 2900000, r = rng(7);
   const cells = Array.from({ length: 35 }, (_, i) => i > 31 ? null : i < 26 ? [3, 2, 1][Math.floor(r() * 3)] : 0);
-  return { live: false, ranges: [7, 30, 90], handle: S.handle, avatar: '', series: ser, followers: Math.round(ser[ser.length - 1]), gain: Math.round(13752 * days / 30), views, reach: Math.round(views * 0.336),
-    newFollowers: Math.round(13358 * days / 30), interactions: Math.round(views * 0.12), audience: { followers: Math.round(views * 0.053), non: Math.round(views * 0.93) },
-    heat: { cells, daysWith: 26, daysTotal: 31, streak: 3 },
-    reels: FEED.map((x, i) => ({ id: x.id, title: x.title, g: x.g, views: [475e3, 365e3, 312e3, 174e3, 150e3, 107e3][i], mult: [27, 21, 18, 9.9, 8.6, 6.1][i] })) };
+  return { live: false, ranges: [7, 30, 90], handle: S.handle, series: ser, followers: Math.round(ser[ser.length - 1]), gain: Math.round(13752 * days / 30), views, reach: Math.round(views * 0.336),
+    newFollowers: Math.round(13358 * days / 30), interactions: Math.round(views * 0.12), prev: null, audience: { followers: Math.round(views * 0.053), non: Math.round(views * 0.93) },
+    heat: { cells, daysWith: 26, daysTotal: 31, streak: 3 }, snapshots: [],
+    reels: FEED.map((x, i) => ({ id: x.id, title: x.title, caption: x.title, g: x.g, views: [475e3, 365e3, 312e3, 174e3, 150e3, 107e3][i], mult: [27, 21, 18, 9.9, 8.6, 6.1][i] })),
+    carousels: [['5 pricing page fixes', 38200, 2100, 1600], ['Founder tools I actually use', 27400, 1500, 980], ['How I got my first 100 users', 19100, 1200, 640]].map(([title, reach, saves, shares], i) => ({ id: 'sc' + i, title, g: GRADS[i], reach, saves, shares, likes: Math.round(reach * 0.04) })) };
 }
-function liveModel(d) {
-  const cells = d.heat.cells.map((n) => n == null ? null : Math.min(3, n));
-  return { live: true, ranges: [7, 14, 30], handle: d.profile.username, avatar: d.profile.avatar, series: d.series, followers: d.profile.followers, gain: d.newFollowers,
-    views: d.views, reach: d.reach, newFollowers: d.newFollowers, interactions: d.interactions, audience: d.audience, heat: { cells, daysWith: d.heat.daysWith, daysTotal: d.heat.daysTotal, streak: d.heat.streak }, reels: d.reels, notes: d.notes };
+function liveModel(a) {
+  const d = a.data, cells = d.heat.cells.map((n) => n == null ? null : Math.min(3, n));
+  return { live: true, id: a.id, ranges: [7, 14, 30], handle: a.username, avatar: d.profile.avatar, series: d.series, followers: d.profile.followers, gain: d.newFollowers, views: d.views, reach: d.reach,
+    newFollowers: d.newFollowers, interactions: d.interactions, prev: d.prev, audience: d.audience, heat: { cells, daysWith: d.heat.daysWith, daysTotal: d.heat.daysTotal, streak: d.heat.streak },
+    reels: d.reels, carousels: d.carousels, notes: d.notes, snapshots: d.snapshots };
 }
-let statsReel = null;
+const deltaChip = (cur, prev) => {
+  if (cur == null || prev == null || !prev) return '';
+  const p = (cur - prev) / prev * 100; return `<span class="dchip ${p >= 0 ? 'up' : 'down'}">${p >= 0 ? '▲' : '▼'} ${Math.abs(p).toFixed(Math.abs(p) < 10 ? 1 : 0)}%</span>`;
+};
+const avatarHtml = (name, url) => url ? `<img src="${esc(url)}" alt="" referrerpolicy="no-referrer">` : esc((name[0] || 'y').toUpperCase());
+function spark(vals, w = 180, h = 44) {
+  if (!vals || vals.length < 2) return '';
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  return `<svg viewBox="0 0 ${w} ${h}" class="spark" preserveAspectRatio="none" aria-hidden="true"><path d="${areaPath(vals, w, h - 4, lo, hi)}" fill="none" stroke="url(#gl)" stroke-width="2.5" stroke-linecap="round" transform="translate(0 2)"/></svg>`;
+}
+let statsReel = null, kicking = false;
+function kickRefresh(list) {
+  if (!list.length || kicking) return; kicking = true;
+  (async () => { for (const a of list) { try { await IG.refresh(a.id, S.igRange); } catch (e) { /* shown on the card */ } } kicking = false; renderRailCards(); if (onStage('analytics')) viewAnalytics(); })();
+}
+function whatsWorking(M) {
+  const lift = M.live ? Tools.featureLift(M.reels) : [];
+  const arms = S.learn.arms, n = Tools.totalResults(arms), dim = (key, opts) => Tools.rank(arms[key], opts).filter((x) => x.n > 0).slice(0, 3);
+  const learnedRows = n ? [['Style', dim('theme', THEMES.map((t) => t.name))], ['Pace', dim('pace', Object.keys(PACES))], ['Captions', dim('caption', RV.FX_OPTIONS.caption)]] : [];
+  return `<div class="dual">
+    <div class="panel"><h3>${svg('flame', 16)} What’s working in your hooks</h3>${lift.length
+      ? lift.slice(0, 5).map((f) => `<div class="bar"><span>${esc(f.label)}</span><div><i style="width:${clamp(f.lift / Math.max(...lift.map((x) => x.lift)) * 100, 6, 100)}%"></i></div><b class="${f.lift >= 1 ? 'upc' : 'downc'}">${f.lift.toFixed(1)}×</b></div>`).join('') + '<p class="muted small">How much more engagement reels with this trait earned than reels without it.</p>'
+      : `<p class="muted">${M.live ? 'Needs at least 4 reels with results to compare hook traits.' : 'Connect Instagram and Studio compares the hooks of your reels to see which traits win.'}</p>`}</div>
+    <div class="panel"><div class="ph"><h3>${svg('brain', 16)} What Studio has learned</h3>${n ? '<button type="button" class="linkbtn" id="resetLearn" style="margin:0">Reset</button>' : ''}</div>${n
+      ? learnedRows.map(([l, rows]) => `<div class="lrow"><span>${l}</span><div>${rows.map((r) => `<span class="chip ${r.mean >= 0.55 ? 'good' : ''}" title="${r.n} posts">${esc(r.option)} · ${Math.round(r.mean * 100)}</span>`).join('')}</div></div>`).join('') + `<p class="muted small">Learned from ${n} posted video${n > 1 ? 's' : ''}. Each number is that choice’s result score (0 to 100), nudged toward 50 until there is more data.</p>`
+      : '<p class="muted">Nothing yet. Post a video, then link its live reel on the Calendar. Studio scores it by likes, comments, shares and saves per view, and favours the styles that score best.</p>'}</div>
+  </div>`;
+}
 function viewAnalytics() {
   ensurePosts();
-  const connected = IG.connected();
-  if (connected && (IG.status === 'idle' || (IG.status === 'ok' && IG.data && IG.data.days !== S.igRange))) {
-    IG.refresh(S.igRange).catch(() => {}).finally(() => { renderIgCard(); if (onStage('analytics')) viewAnalytics(); });
-    renderIgCard();
+  const accts = IG.list(), connected = accts.length > 0;
+  if (connected && S.insightsAcct !== 'all' && !IG.get(S.insightsAcct)) S.insightsAcct = IG.activeId();
+  if (connected && accts.length === 1) S.insightsAcct = accts[0].id;
+  const sel = connected ? S.insightsAcct : null, range = connected ? S.igRange : S.range;
+  const targets = connected ? (sel === 'all' ? accts.map((a) => IG.get(a.id)) : [IG.get(sel)]) : [];
+  kickRefresh(targets.filter((a) => a && a.token && (a.status === 'idle' || (a.status === 'ok' && a.data && a.data.days !== S.igRange))));
+  const loading = targets.some((a) => a && (a.status === 'idle' || a.status === 'loading'));
+  const acctSel = connected && accts.length > 1 ? `<select id="acctSel" aria-label="Account"><option value="all" ${sel === 'all' ? 'selected' : ''}>All accounts</option>${accts.map((a) => `<option value="${esc(a.id)}" ${a.id === sel ? 'selected' : ''}>@${esc(a.username)}</option>`).join('')}</select>` : '';
+  const stamp = targets.length && targets[0] && targets[0].fetchedAt ? ' · updated ' + new Date(Math.max(...targets.map((a) => a.fetchedAt || 0))).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+  const head = (right) => `<div class="toolbar">${connected ? `<span class="chip live"><i class="dot"></i> Live${stamp}</span>` : '<span class="chip">Sample data</span>'}${acctSel}<span class="spacer"></span>${right}</div>`;
+  const bindCommon = () => {
+    const as = $('#acctSel'); if (as) as.onchange = (e) => { S.insightsAcct = e.target.value; if (e.target.value !== 'all') IG.setActive(e.target.value); save(); renderRailCards(); viewAnalytics(); };
+    const rg = $('#range'); if (rg) rg.onchange = (e) => { if (connected) S.igRange = +e.target.value; else S.range = +e.target.value; save(); viewAnalytics(); };
+    const rf = $('#refresh'); if (rf) rf.onclick = () => { targets.forEach((a) => { if (a) a.status = 'idle'; }); viewAnalytics(); };
+    const cc = $('#connectCta'); if (cc) cc.onclick = openIg;
+  };
+  if (loading) { $('#view').innerHTML = head('') + `<div class="kpis">${[0, 1, 2, 3].map(() => '<div class="kpi skel"></div>').join('')}</div><div class="an"><div class="panel skel tall"></div><div class="panel skel tall"></div></div>`; return; }
+  const rangeSel = (rs) => `<select id="range" aria-label="Date range">${rs.map((d) => `<option value="${d}" ${d === range ? 'selected' : ''}>Last ${d} days</option>`).join('')}</select>`;
+  const refreshBtn = `<button class="btn" id="refresh" type="button">${svg('refresh', 16)} Refresh</button>`;
+
+  /* all accounts */
+  if (connected && sel === 'all') {
+    const ok = targets.filter((a) => a && a.data), bad = targets.filter((a) => a && !a.data);
+    const sum = (k) => ok.reduce((s, a) => s + (a.data[k] || 0), 0), sumPrev = (k) => ok.every((a) => a.data.prev && a.data.prev[k] != null) ? ok.reduce((s, a) => s + a.data.prev[k], 0) : null;
+    const followers = ok.reduce((s, a) => s + a.data.profile.followers, 0), maxViews = Math.max(1, ...ok.map((a) => a.data.views || 0));
+    $('#view').innerHTML = head(refreshBtn + rangeSel([7, 14, 30])) + `
+    <div class="kpis">${[['users', 'Followers (all)', followers, null], ['eye', 'Views', sum('views'), sumPrev('views')], ['users', 'Accounts reached', sum('reach'), sumPrev('reach')], ['heart', 'Interactions', sum('interactions'), sumPrev('interactions')]]
+      .map(([ic, l, v, pv], i) => `<div class="kpi" style="--i:${i}"><div class="l">${svg(ic, 16)} ${l}</div><div class="v"><span data-count="${v}" data-kind="compact">0</span></div>${pv != null ? `<div class="vs">${deltaChip(v, pv)} <span>vs previous ${S.igRange} days</span></div>` : ''}</div>`).join('')}</div>
+    <div class="acards">${ok.map((a, i) => { const d = a.data; return `<div class="acard" style="--i:${i}"><div class="ahead"><span class="av">${avatarHtml(a.username, d.profile.avatar)}</span><div><b>@${esc(a.username)}</b><small class="muted">${fmt(d.profile.followers)} followers</small></div><span class="spacer"></span><button class="btn sm" type="button" data-open="${esc(a.id)}">Open ${svg('arrow', 14)}</button></div>
+      <div class="amets"><div><small>Views</small><b>${d.views == null ? 'n/a' : fmt(d.views)}</b>${deltaChip(d.views, d.prev && d.prev.views)}</div><div><small>Reach</small><b>${d.reach == null ? 'n/a' : fmt(d.reach)}</b>${deltaChip(d.reach, d.prev && d.prev.reach)}</div><div><small>Interactions</small><b>${d.interactions == null ? 'n/a' : fmt(d.interactions)}</b>${deltaChip(d.interactions, d.prev && d.prev.interactions)}</div></div>
+      ${spark(d.series)}<div class="vbar"><i style="width:${(d.views || 0) / maxViews * 100}%"></i></div></div>`; }).join('')}
+      ${bad.map((a) => `<div class="acard bad"><div class="ahead"><span class="av">${esc((a.username[0] || '?').toUpperCase())}</span><b>@${esc(a.username)}</b></div><p class="muted small">${esc(a.error || 'No data')}</p><button class="btn sm" type="button" id="fixAcct">Manage accounts</button></div>`).join('')}</div>
+    <svg width="0" height="0" aria-hidden="true"><defs><linearGradient id="gl" x1="0" x2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset=".6" stop-color="#ec4899"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs></svg>`;
+    bindCommon(); $$('[data-open]').forEach((b) => b.onclick = () => { S.insightsAcct = b.dataset.open; IG.setActive(b.dataset.open); save(); renderRailCards(); viewAnalytics(); });
+    const fa = $('#fixAcct'); if (fa) fa.onclick = openIg; countUps(); return;
   }
-  const loading = connected && (IG.status === 'idle' || IG.status === 'loading');
-  const range = connected ? S.igRange : S.range;
-  const head = (right) => `<div class="toolbar">${connected ? `<span class="chip live"><i class="dot"></i> Live${IG.fetchedAt ? ' · updated ' + new Date(IG.fetchedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''}</span>` : '<span class="chip">Sample data</span>'}<span class="spacer"></span>${right}</div>`;
-  if (loading) {
-    $('#view').innerHTML = head('') + `<div class="kpis">${[0, 1, 2, 3].map(() => '<div class="kpi skel"></div>').join('')}</div><div class="an"><div class="panel skel tall"></div><div class="panel skel tall"></div></div>`; return;
+
+  /* one account (or sample data) */
+  const A = targets[0];
+  if (connected && (!A || !A.data)) {
+    $('#view').innerHTML = head('') + `<div class="panel errbox"><h3>Couldn’t load @${esc(A ? A.username : 'account')}</h3><p>${esc((A && A.error) || 'No data yet.')}</p><div class="row"><button class="btn primary" id="retry" type="button">${svg('refresh', 16)} Try again</button><button class="btn" id="reconnect" type="button">Manage accounts</button></div></div>`;
+    bindCommon(); $('#retry').onclick = () => { if (A) A.status = 'idle'; viewAnalytics(); }; $('#reconnect').onclick = openIg; return;
   }
-  if (connected && IG.status === 'error') {
-    $('#view').innerHTML = head('') + `<div class="panel errbox"><h3>Couldn’t load your Instagram data</h3><p>${esc(IG.error)}</p><div class="row"><button class="btn primary" id="retry" type="button">${svg('refresh', 16)} Try again</button><button class="btn" id="reconnect" type="button">Reconnect</button></div></div>`;
-    $('#retry').onclick = () => { IG.refresh(S.igRange).catch(() => {}).finally(() => { renderIgCard(); if (onStage('analytics')) viewAnalytics(); }); viewAnalytics(); };
-    $('#reconnect').onclick = openIg; return;
-  }
-  const M = connected && IG.data ? liveModel(IG.data) : sampleModel(S.range);
-  const opts = M.ranges.map((d) => `<option value="${d}" ${d === range ? 'selected' : ''}>Last ${d} days</option>`).join('');
+  const M = connected ? liveModel(A) : sampleModel(S.range);
   const val = (v, kind) => v == null ? '<span class="na" title="Not available for this account">n/a</span>' : `<span data-count="${v}" data-kind="${kind || 'compact'}">0</span>`;
-  const W = 900, H = 240;
-  let chart;
+  const W = 900, H = 240; let chart;
   if (M.series && M.series.length > 1) {
     const lo = Math.min(...M.series), hi = Math.max(...M.series), pad = (hi - lo) * 0.12 || 1, a = lo - pad, b = hi + pad;
     chart = `<svg viewBox="0 0 ${W} ${H + 16}" class="areachart" role="img" aria-label="Follower growth">
@@ -630,13 +817,15 @@ function viewAnalytics() {
       <linearGradient id="gl" x1="0" x2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset=".6" stop-color="#ec4899"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs>
       <path class="area" d="${areaPath(M.series, W, H, a, b, true)}" fill="url(#ga)"/><path class="line draw" pathLength="1" d="${areaPath(M.series, W, H, a, b)}" fill="none" stroke="url(#gl)" stroke-width="3.5" stroke-linecap="round"/></svg>`;
   } else chart = '<p class="muted pad">Follower history needs an account with at least 100 followers.</p>';
+  const snaps = M.snapshots || [], sinceChip = snaps.length > 1 ? `<span class="chip" title="Saved by Studio each time you refresh">${snaps[snaps.length - 1].followers - snaps[0].followers >= 0 ? '+' : ''}${(snaps[snaps.length - 1].followers - snaps[0].followers).toLocaleString()} since ${snaps[0].date}</span>` : '';
   const aud = M.audience, pct = aud ? Math.round(aud.non / (aud.non + aud.followers) * 100) : 0, C = 2 * Math.PI * 15.9;
-  const cells = M.heat.cells;
-  const heat = `<div class="heatwrap"><div class="heat">${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => `<em>${d}</em>`).join('')}${cells.map((n, i) => n == null ? '<i class="off"></i>' : `<i class="l${n}" style="--i:${i}"></i>`).join('')}</div>
+  const heat = `<div class="heatwrap"><div class="heat">${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => `<em>${d}</em>`).join('')}${M.heat.cells.map((n, i) => n == null ? '<i class="off"></i>' : `<i class="l${n}" style="--i:${i}"></i>`).join('')}</div>
     <div class="heatstats"><div><b>${M.heat.daysWith}<small>/${M.heat.daysTotal}</small></b><span>days with a post</span></div><div><b>${M.heat.streak}</b><span>day streak</span></div></div></div>`;
-  const reelCards = M.reels.slice(0, 6).map((x, i) => `<${x.permalink ? `a href="${esc(x.permalink)}" target="_blank" rel="noopener"` : 'div'} class="tr" style="--c1:${x.g ? x.g[0] : '#312e81'};--c2:${x.g ? x.g[1] : '#0b0b1a'};--i:${i}">
-    ${x.thumb ? `<img src="${esc(x.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}<span class="shade"></span>${x.mult ? `<span class="mult">${x.mult}×</span>` : ''}<div class="cap2">${esc(x.title)}<span>${svg('play', 12)} ${fmt(x.views)}</span></div></${x.permalink ? 'a' : 'div'}>`).join('');
-  /* per-video stats */
+  const reelCards = M.reels.slice(0, 6).map((x, i) => `<div class="trw" style="--i:${i}"><${x.permalink ? `a href="${esc(x.permalink)}" target="_blank" rel="noopener"` : 'div'} class="tr" style="--c1:${x.g ? x.g[0] : '#312e81'};--c2:${x.g ? x.g[1] : '#0b0b1a'}">
+    ${x.thumb ? `<img src="${esc(x.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}<span class="shade"></span>${x.mult ? `<span class="mult">${x.mult}×</span>` : ''}<div class="cap2">${esc(x.title)}<span>${svg('play', 12)} ${fmt(x.views)}</span></div></${x.permalink ? 'a' : 'div'}>
+    <button class="btn sm" type="button" data-like="${i}">${svg('wand', 14)} Make one like this</button></div>`).join('');
+  const carCards = M.carousels.slice(0, 6).map((x, i) => `<${x.permalink ? `a href="${esc(x.permalink)}" target="_blank" rel="noopener"` : 'div'} class="cr" style="--c1:${x.g ? x.g[0] : '#312e81'};--c2:${x.g ? x.g[1] : '#0b0b1a'};--i:${i}">
+    ${x.thumb ? `<img src="${esc(x.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}<span class="shade"></span><div class="cap2">${esc(x.title)}<span class="cstats"><em>${fmt(x.reach || x.likes)} reach</em><em>${fmt(x.saves)} saves</em><em>${fmt(x.shares)} shares</em></span></div></${x.permalink ? 'a' : 'div'}>`).join('');
   let stats = '';
   if (M.live) {
     const sr = M.reels.find((r) => r.id === statsReel) || M.reels[0];
@@ -656,11 +845,12 @@ function viewAnalytics() {
         <div class="axisrow"><span>Posted</span><span>Day 1 · ${st.d1.toLocaleString()}</span><span>Day 3 · ${st.d3.toLocaleString()}</span><span>Day 7 · ${st.views.toLocaleString()}</span></div></div>`
       : '<div class="panel muted">Mark a post as posted on the Calendar to see its stats here.</div>';
   }
-  $('#view').innerHTML = head(`${M.live ? `<button class="btn" id="refresh" type="button">${svg('refresh', 16)} Refresh</button>` : `<button class="btn primary" id="connectCta" type="button">${svg('camera', 16)} Connect Instagram for real numbers</button>`}<select id="range" aria-label="Date range">${opts}</select>`) + `
+  const kp = [['eye', 'Views', M.views, 'compact', M.prev && M.prev.views], ['users', 'Accounts reached', M.reach, 'compact', M.prev && M.prev.reach], ['userplus', 'New followers', M.newFollowers, 'plus', null], ['heart', 'Interactions', M.interactions, 'compact', M.prev && M.prev.interactions]];
+  $('#view').innerHTML = head((M.live ? refreshBtn : `<button class="btn primary" id="connectCta" type="button">${svg('camera', 16)} Connect Instagram for real numbers</button>`) + rangeSel(M.ranges)) + `
   ${M.notes && M.notes.length ? `<details class="notes"><summary>${M.notes.length} metric${M.notes.length > 1 ? 's' : ''} unavailable</summary><ul>${M.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul></details>` : ''}
-  <div class="kpis">${[['eye', 'Views', M.views, 'compact'], ['users', 'Accounts reached', M.reach, 'compact'], ['userplus', 'New followers', M.newFollowers, 'plus'], ['heart', 'Interactions', M.interactions, 'compact']].map(([ic, l, v, k], i) => `<div class="kpi" style="--i:${i}"><div class="l">${svg(ic, 16)} ${l}</div><div class="v">${val(v, k)}</div></div>`).join('')}</div>
+  <div class="kpis">${kp.map(([ic, l, v, k, pv], i) => `<div class="kpi" style="--i:${i}"><div class="l">${svg(ic, 16)} ${l}</div><div class="v">${val(v, k)}</div>${M.live && pv != null ? `<div class="vs">${deltaChip(v, pv)} <span>vs previous ${S.igRange} days</span></div>` : ''}</div>`).join('')}</div>
   <div class="an">
-    <div class="panel"><h3>Followers</h3><div class="bigrow"><span class="big" data-count="${M.followers}" data-kind="int">0</span>${M.gain != null ? `<span class="delta ${M.gain < 0 ? 'neg' : ''}">${M.gain >= 0 ? '+' : ''}${Math.round(M.gain).toLocaleString()}</span>` : ''}</div>${chart}</div>
+    <div class="panel"><h3>Followers</h3><div class="bigrow"><span class="big" data-count="${M.followers}" data-kind="int">0</span>${M.gain != null ? `<span class="delta ${M.gain < 0 ? 'neg' : ''}">${M.gain >= 0 ? '+' : ''}${Math.round(M.gain).toLocaleString()}</span>` : ''}${sinceChip}</div>${chart}</div>
     <div class="stack">
       <div class="panel"><h3>Who’s watching</h3>${aud ? `<div class="donutwrap"><svg width="132" height="132" viewBox="0 0 42 42" role="img" aria-label="${pct}% non-followers"><circle cx="21" cy="21" r="15.9" class="d-bg"/><circle cx="21" cy="21" r="15.9" class="d-fg" stroke-dasharray="${C * pct / 100} ${C}" transform="rotate(-90 21 21)"/><text x="21" y="23.5" text-anchor="middle" class="d-n">${pct}%</text></svg>
         <div class="legend"><div><span><i class="a"></i>Non-followers</span><b>${fmt(aud.non)}</b></div><div><span><i class="b"></i>Followers</span><b>${fmt(aud.followers)}</b></div></div></div>` : '<p class="muted">Audience split is not available for this account yet.</p>'}</div>
@@ -668,14 +858,47 @@ function viewAnalytics() {
     </div></div>
   <h3 class="sect">${M.live ? 'Top reels (last 30 days)' : 'Top reels'}</h3>
   ${M.reels.length ? `<div class="top-reels">${reelCards}</div>` : '<div class="panel muted">No reels found in your recent posts.</div>'}
+  ${whatsWorking(M)}
+  <h3 class="sect">Carousels</h3>
+  ${M.carousels.length ? `<div class="carousels">${carCards}</div>` : '<div class="panel muted">No carousels in your recent posts.</div>'}
   <h3 class="sect">${M.live ? 'Reel breakdown' : 'Latest video'}</h3>${stats}`;
-  $('#range').onchange = (e) => { if (connected) { S.igRange = +e.target.value; } else S.range = +e.target.value; save(); viewAnalytics(); };
-  const rf = $('#refresh'); if (rf) rf.onclick = () => { IG.refresh(S.igRange).catch(() => {}).finally(() => { renderIgCard(); if (onStage('analytics')) viewAnalytics(); }); viewAnalytics(); };
-  const cc = $('#connectCta'); if (cc) cc.onclick = openIg;
+  bindCommon();
+  $$('[data-like]').forEach((b) => b.onclick = () => openGen(M.reels[+b.dataset.like], M.live));
+  const rl = $('#resetLearn'); if (rl) rl.onclick = () => { if (confirm('Forget everything Studio has learned?')) { S.learn = { arms: {}, log: [] }; S.posts.forEach((p) => { delete p.learned; delete p.reward; }); save(); viewAnalytics(); } };
   const ss = $('#statsSel'); if (ss) ss.onchange = (e) => { statsReel = e.target.value; viewAnalytics(); };
   const sp2 = $('#statsPost'); if (sp2) sp2.onchange = (e) => { S.statsPost = e.target.value; save(); viewAnalytics(); };
   countUps();
 }
+
+/* ---------- make one like this ---------- */
+const gend = $('#genDialog'); let genRef = null;
+function genMsg(m, kind) { const n = $('#genMsg'); n.textContent = m; n.className = 'note ' + (kind || ''); }
+function openGen(reel, live) {
+  if (!reel) return; genRef = reel;
+  const caption = reel.caption || reel.title, f = Tools.hookFeatures(Tools.firstLine(caption)), why = Tools.FEATURES.filter(([k]) => f[k]).map(([, l]) => l);
+  if (live) { const med = Tools.median(liveReels().map(Tools.engagement)), e = Tools.engagement(reel); if (med && e) why.push(`${(e / med).toFixed(1)}× your median engagement`); }
+  $('#genRef').innerHTML = `${reel.thumb ? `<img src="${esc(reel.thumb)}" alt="" referrerpolicy="no-referrer">` : `<div class="noimg" style="background:linear-gradient(160deg,${reel.g ? reel.g[0] : '#312e81'},${reel.g ? reel.g[1] : '#0b0b1a'})">${svg('film2', 26)}</div>`}<div class="refmeta"><b>${esc(reel.title)}</b><span class="muted small">${fmt(reel.views)} views${live ? '' : ' · sample reel'}</span></div>`;
+  $('#genWhy').innerHTML = why.length ? why.map((w) => `<span class="chip blue">${esc(w)}</span>`).join('') : '<span class="muted small">Claude will study its structure.</span>';
+  $('#genTopic').value = ''; genMsg(AI.configured() ? '' : 'Add your Claude API key to generate. Or copy its structure and rewrite it yourself.');
+  $('#genGo').innerHTML = AI.configured() ? `${svg('sparkles', 16)} Generate with Claude` : `${svg('key', 16)} Add Claude API key`;
+  gend.showModal();
+}
+function startFromParts(parts, source, ref) {
+  const sc = scriptFrom(Tools.blocksFrom(parts, { addCta: true }), parts.title || shortTitle(parts.hook), source); sc.ref = ref || '';
+  const learned = applyLearned(sc); addScript(sc); gend.close(); toast(learned ? 'Script created in the style Studio learned works best' : 'Script created'); go(1);
+}
+$('#genGo').onclick = async (e) => {
+  if (!AI.configured()) { gend.close(); openApi(); return; }
+  const btn = e.currentTarget; busy(btn, true, 'Claude is writing…'); genMsg('');
+  try {
+    const r = await AI.fromReference({ reference: genRef, topic: $('#genTopic').value.trim(), niche: S.niche });
+    startFromParts(r, 'Like ' + shortTitle(genRef.title), genRef.permalink);
+  } catch (err) { genMsg(err.message, 'bad'); } finally { busy(btn, false); }
+};
+$('#genCopy').onclick = () => {
+  const parts = Tools.splitScript(genRef.caption || genRef.title); if (!parts) { genMsg('There is no caption to copy.', 'bad'); return; }
+  startFromParts(parts, 'Structure of ' + shortTitle(genRef.title), genRef.permalink);
+};
 
 /* ---------- 06 Remix ---------- */
 function slidesFor(sc) { const body = sc.blocks.filter((b) => b.type === 'body' && b.text.trim()).slice(0, 6); return [{ cover: true, text: sc.title }, ...body.map((b, i) => ({ n: i + 1, text: b.text }))]; }
@@ -737,43 +960,69 @@ const VIEWS = { feed: viewFeed, script: viewScript, production: viewProduction, 
 /* ---------- dialogs ---------- */
 const dlg = $('#settings');
 function openSettings() {
-  $('#setWebhook').value = S.settings.webhook; $('#setAuth').value = S.settings.auth; $('#setHandle').value = handle();
-  $('#setHandle').disabled = IG.connected(); $('#handleNote').textContent = IG.connected() ? 'Taken from your connected Instagram account.' : '';
+  $('#setWebhook').value = S.settings.webhook; $('#setAuth').value = S.settings.auth; $('#setHandle').value = handle(); $('#setNiche').value = S.niche;
+  $('#setHandle').disabled = IG.connected(); $('#handleNote').textContent = IG.connected() ? 'Taken from your active Instagram account.' : '';
   dlg.showModal();
 }
 dlg.addEventListener('close', () => {
   if (dlg.returnValue !== 'save') return;
-  S.settings.webhook = $('#setWebhook').value.trim(); S.settings.auth = $('#setAuth').value.trim();
+  S.settings.webhook = $('#setWebhook').value.trim(); S.settings.auth = $('#setAuth').value.trim(); S.niche = $('#setNiche').value.trim() || 'SaaS founders';
   if (!IG.connected()) S.handle = ($('#setHandle').value.trim() || 'yourbrand').replace(/^@/, '');
   save(); render(); toast('Settings saved');
 });
 $('#openSettings').onclick = openSettings;
-$('#resetAll').onclick = () => { if (confirm('Clear all scripts, posts and settings on this device?')) { localStorage.removeItem('gr_state'); location.reload(); } };
+$('#resetAll').onclick = () => { if (confirm('Clear all scripts, posts, learning and settings on this device?')) { localStorage.removeItem('gr_state'); location.reload(); } };
 
+/* Claude API key */
+const apid = $('#apiDialog');
+function apiMsg(t, kind) { const m = $('#apiMsg'); m.textContent = t; m.className = 'note ' + (kind || ''); }
+function openApi() {
+  [dlg, igd, impd, gend].forEach((d) => { if (d.open) d.close(); });
+  $('#apiModel').innerHTML = AI.MODELS.map(([id, label]) => `<option value="${id}" ${id === AI.model() ? 'selected' : ''}>${label}</option>`).join('');
+  $('#apiKey').value = ''; $('#apiKey').placeholder = AI.configured() ? 'Key saved. Paste a new one to replace it.' : 'sk-ant-…';
+  $('#apiRemember').checked = AI.remembered(); $('#apiRemove').hidden = !AI.configured();
+  apiMsg(AI.configured() ? 'Claude is connected.' : '', AI.configured() ? 'ok' : ''); apid.showModal();
+}
+$('#aiCard').onclick = openApi;
+$('#apiTest').onclick = async (e) => {
+  const key = $('#apiKey').value.trim(), model = $('#apiModel').value, remember = $('#apiRemember').checked, had = AI.configured(), oldModel = AI.model(), oldRem = AI.remembered();
+  if (!key && !had) { apiMsg('Paste your API key first.', 'bad'); return; }
+  const btn = e.currentTarget; busy(btn, true, 'Testing…'); apiMsg('Asking Claude to say OK…');
+  const snapshot = had ? { model: oldModel, rem: oldRem } : null;
+  try {
+    if (key) AI.setKey(key, model, remember); else AI.setOptions(model, remember);
+    await AI.test(); apiMsg('Connected. Claude answered.', 'ok'); $('#apiKey').value = ''; $('#apiRemove').hidden = false; renderRailCards();
+    if (onStage('production') || onStage('feed') || onStage('analytics')) render();
+  } catch (err) { if (!snapshot && key) AI.clear(); apiMsg(err.message, 'bad'); } finally { busy(btn, false); }
+};
+$('#apiRemove').onclick = () => { AI.clear(); apiMsg('Key removed from this browser.'); $('#apiRemove').hidden = true; renderRailCards(); if (onStage('production')) viewProduction(); };
+
+/* Instagram accounts */
 const igd = $('#igDialog');
 function igMsg(text, kind) { const m = $('#igMsg'); m.textContent = text; m.className = 'note ' + (kind || ''); }
+function renderIgList() {
+  const list = IG.list(), act = IG.activeId();
+  $('#igList').innerHTML = list.length ? list.map((a) => `<div class="acctrow"><span class="av">${avatarHtml(a.username, a.avatar)}</span>
+    <div><b>@${esc(a.username)}</b><small class="${a.status === 'error' || a.status === 'notoken' ? 'badc' : 'muted'}">${a.status === 'error' || a.status === 'notoken' ? esc(a.error || 'Needs attention') : a.id === act ? 'Active' : 'Connected'}${a.remembered ? ' · remembered' : ''}</small></div>
+    <span class="spacer"></span>${a.id === act ? '' : `<button type="button" class="btn sm" data-use="${esc(a.id)}">Use</button>`}<button type="button" class="btn sm danger" data-rm="${esc(a.id)}">Remove</button></div>`).join('') : '<p class="muted small">No accounts yet. Add one below. You can add as many as you manage.</p>';
+  $$('#igList [data-use]').forEach((b) => b.onclick = () => { IG.setActive(b.dataset.use); S.insightsAcct = b.dataset.use; save(); renderIgList(); renderRailCards(); });
+  $$('#igList [data-rm]').forEach((b) => b.onclick = () => { if (!confirm(`Remove @${b.dataset.rm} and delete its token from this browser?`)) return; IG.disconnect(b.dataset.rm); if (S.insightsAcct === b.dataset.rm) S.insightsAcct = IG.activeId() || ''; save(); renderIgList(); renderRailCards(); });
+}
 function openIg() {
-  const c = IG.config() || {};
-  $('#igHost').value = c.host || 'graph.instagram.com'; $('#igId').value = c.userId || ''; $('#igToken').value = '';
-  $('#igToken').placeholder = c.token ? 'Token saved. Paste a new one to replace it.' : 'Paste your access token';
-  $('#igRemember').checked = IG.remembered(); $('#igDisconnect').hidden = !IG.connected();
-  igMsg(IG.connected() && IG.profile ? `Connected as @${IG.profile.username}.` : '', IG.connected() ? 'ok' : '');
-  if (dlg.open) dlg.close(); igd.showModal();
+  [dlg, apid, impd, gend].forEach((d) => { if (d.open) d.close(); });
+  $('#igHost').value = 'graph.instagram.com'; $('#igId').value = ''; $('#igToken').value = ''; $('#igRemember').checked = false; igMsg(''); renderIgList(); igd.showModal();
 }
 $('#igCard').onclick = openIg;
-$('#igTest').onclick = async () => {
-  const old = IG.config() || {}, token = $('#igToken').value.trim() || old.token || '';
-  if (!token) { igMsg('Paste an access token first.', 'bad'); return; }
-  igMsg('Checking with Instagram…', '');
+$('#igTest').onclick = async (e) => {
+  const token = $('#igToken').value.trim(); if (!token) { igMsg('Paste an access token first.', 'bad'); return; }
+  const btn = e.currentTarget; busy(btn, true, 'Checking…'); igMsg('Checking with Instagram…');
   try {
-    const prof = await IG.connect({ host: $('#igHost').value, userId: $('#igId').value.trim(), token }, $('#igRemember').checked);
-    igMsg(`Connected as @${prof.username} · ${fmt(prof.followers)} followers`, 'ok');
-    S.handle = prof.username || S.handle; save(); $('#igDisconnect').hidden = false; $('#igToken').value = ''; renderIgCard();
-    if (onStage('analytics')) viewAnalytics();
-  } catch (e) { igMsg(e.message, 'bad'); }
+    const { profile, id } = await IG.connect({ host: $('#igHost').value, userId: $('#igId').value.trim(), token }, $('#igRemember').checked);
+    IG.setActive(id); S.insightsAcct = id; save();
+    igMsg(`Added @${profile.username} · ${fmt(profile.followers)} followers`, 'ok'); $('#igToken').value = ''; $('#igId').value = ''; renderIgList(); renderRailCards();
+  } catch (err) { igMsg(err.message, 'bad'); } finally { busy(btn, false); }
 };
-$('#igDisconnect').onclick = () => { IG.disconnect(); igMsg('Disconnected. Your token was removed from this browser.', ''); $('#igDisconnect').hidden = true; renderIgCard(); if (onStage('analytics')) viewAnalytics(); };
-igd.addEventListener('close', () => { if (onStage('analytics')) viewAnalytics(); });
+igd.addEventListener('close', () => { renderRailCards(); if (onStage('analytics')) viewAnalytics(); else if (onStage('production') || onStage('calendar')) render(); });
 
 /* ---------- wiring ---------- */
 $('#nextBtn').onclick = () => go(S.stage + 1);

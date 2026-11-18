@@ -1,7 +1,7 @@
 # Reel Studio
 
 A short-video workflow in six steps: **Discover → Scripts → Studio → Calendar → Insights → Remix**.
-It makes real video files in your browser and reads real numbers from your Instagram professional account.
+It imports scripts from reel links, makes real animated video files in your browser, reads real numbers from one or many Instagram accounts, and learns which styles earn more.
 
 Static site: no build step and no dependencies. Serve the folder and open it:
 
@@ -15,70 +15,114 @@ Everything you create is stored in the browser (`localStorage`). On a phone, use
 
 | Step | What you do |
 |---|---|
-| **Discover** | Drag a reel right to save it or left to skip it (or press → and ←). See why it works, add your own reels, then draft a script from a saved one. |
-| **Scripts** | A library of scripts with a hook, body lines and a comment call-to-action. A scene timeline, checks and a virality score update as you type. |
-| **Studio** | Pick one of 25 styles and a pace, optionally upload a voice-over, and **render a real video**. |
-| **Calendar** | Week view. Schedule a video to the feed or as a trial reel, change its date and time, and mark it posted. |
-| **Insights** | Live numbers from your Instagram account once connected (sample data until then). |
+| **Discover** | Paste a reel link to turn it into a script, or drag reels right to save and left to skip. See why a reel works and draft a script from it. |
+| **Scripts** | A library of scripts. Paste a whole caption into the hook line (or the line below it) and it splits across the lines. A timeline, checks and a virality score update as you type. |
+| **Studio** | Pick one of 25 styles, a pace and a set of effects, let Claude direct the scenes, and **render a real video**. |
+| **Calendar** | Week view. Schedule a video, mark it posted, then link it to its live reel so Studio learns from the result. |
+| **Insights** | Live numbers from one or many Instagram accounts, compared with the previous period, plus carousels and what your best hooks have in common. |
 | **Remix** | The best posted video becomes a carousel (PNG export, 1080×1350) and a batch of new hooks. |
+
+## Import a script from a reel link
+
+Paste an Instagram reel link in **Discover** (or into any script line). Studio then:
+
+1. Looks for the reel in your connected accounts. If it is yours, it loads the caption and thumbnail.
+2. Otherwise tries Instagram's embed API (Meta only allows this for some apps).
+3. If neither works, asks you to paste the caption or what the reel says.
+
+The text is then split into a **hook** (first sentence), **lines** (one idea each, long sentences broken up) and a **comment call-to-action**. With a Claude key, tick *Rewrite in my own words* so you are not copying someone else's script.
+
+**Instagram does not give apps the video or audio of other people's reels**, and Studio does not transcribe video. For someone else's reel, paste what they say.
+
+Pasting several sentences into a script line spreads them over the following lines: into the hook line, the first sentence stays as the hook; into a body line, they become consecutive body lines; a "Comment …" sentence replaces the call-to-action.
 
 ## Video generation
 
-Studio draws every frame itself (animated backgrounds, word-by-word kinetic captions, a scene label, a progress bar, a call-to-action chip) and records them with the browser's `MediaRecorder`.
+Studio draws every frame itself and records it with the browser's `MediaRecorder`. The live preview and the file come from the same renderer, so they match.
 
-- The live preview and the file come from the same renderer, so they match.
-- Output is **720×1280 (9:16), 30 fps**. You get **MP4** in Chrome, Edge and Safari, and **WebM** in browsers that can't record MP4. For WebM, convert for Instagram with:
-  `ffmpeg -i video.webm -c:v libx264 -pix_fmt yuv420p -c:a aac out.mp4`
-- **Rendering runs in real time.** A 30-second reel takes about 30 seconds, and the tab must stay open.
-- **Audio:** a synthesized background beat (switch it off if you like) and, optionally, your own voice-over (MP3, WAV or M4A). With a voice-over, the scenes are re-timed to its length.
-- **There is no text-to-speech.** Browsers cannot capture their own speech engine, so for an AI voice use the webhook below.
+- **25 styles**, each with its own animated background.
+- **Effects**, all optional, with four one-click presets (Clean, Hype, Cinematic, Glitch):
+  - *Captions:* pop, typewriter, slide, bounce, glitch
+  - *Transitions:* ring, zoom, slide, flash, glitch
+  - *Camera:* push-in, drift, shake, still
+  - *Particles:* sparkles, confetti, bokeh
+  - *Toggles:* scene icons, glow, color fringe, film grain
+- **Scene icons:** animated chart, coin, flame, bolt, target, clock, heart and check icons chosen from the words in each line (or by Claude).
+- Output is **720×1280 (9:16) at 30 fps**: MP4 in Chrome, Edge and Safari, WebM where MP4 recording isn't available. Convert WebM for Instagram with
+  `ffmpeg -i video.webm -c:v libx264 -pix_fmt yuv420p -c:a aac out.mp4`.
+- **Rendering runs in real time.** A 30-second reel takes about 30 seconds and the tab must stay open.
+- **Audio:** a synthesized beat (optional) and your own voice-over (MP3, WAV or M4A), which re-times the scenes to your voice.
+- **There is no text-to-speech.** Browsers can't capture their own speech engine. For an AI voice, use the webhook below.
 - Rendered videos live in the tab. Download the file to keep it.
 
-### Hand rendering to your own pipeline (optional)
+## Claude API key (optional, unlocks the AI tools)
 
-Studio → ⚙ Settings → paste an n8n / Make / Zapier / custom API URL. *Render video* then POSTs:
+Click **Add Claude API key** in the sidebar. Your key is stored only in this browser (session only unless you tick *Remember*), and requests go straight from your browser to Anthropic. Create a key at console.anthropic.com, add a little credit, and **set a spend limit on the key**.
+
+With a key, Studio can:
+- **Import a reel** as a script written in your own words.
+- **Direct the video:** per-scene icons and highlighted words, plus the style, pace and effects.
+- **Make one like this:** study a high-performing reel and write a new script on your topic with the same structure and original wording.
+
+You choose the model (Sonnet, Haiku or Opus). Each call costs a small fraction of a cent to a few cents.
+
+## Instagram: one or many accounts
+
+Insights reads your own accounts through Meta's official **Instagram API**. It is read-only: the page never posts or changes anything.
+
+1. Each account must be a **Business or Creator** account.
+2. At [developers.facebook.com](https://developers.facebook.com) create an app (type *Business*) and add the **Instagram** product.
+3. Under *API setup with Instagram login*, add the account and click **Generate token**. Allow `instagram_business_basic` and `instagram_business_manage_insights`. Repeat for each account.
+4. Click **Connect Instagram** and paste each token. (Facebook Login also works; it needs the Instagram user ID.)
+
+What you get, per account or for **All accounts** together: views, accounts reached, new followers and interactions **compared with the previous period**, follower growth (and the change since you connected, from snapshots saved each time you refresh), the follower / non-follower split, a posting streak, top reels with thumbnails, **carousel** reach, saves and shares, and per-reel likes, comments, shares, saves, reach and average watch time.
+
+- Tokens stay in this browser, one per account, in `sessionStorage` or `localStorage` (if you tick *Remember*). **Remove** deletes it. Anyone with a token can read that account's insights.
+- Meta limits these windows to **30 days**, so the ranges are 7, 14 and 30 days.
+- Some metrics aren't available under 100 followers. Anything Meta refuses is listed as *metrics unavailable*.
+- Tokens expire (about 60 days for long-lived ones). The page says so and offers to reconnect.
+- Posting to Instagram from here is not included: Meta's publishing API needs a public video URL and app review.
+
+## Learning from results
+
+Studio learns which creative choices earn more, in a simple loop:
+
+1. Make and post a video. On the **Calendar**, mark it posted and **link it to its live reel** (pick it from your accounts or paste the link).
+2. Studio scores the reel by **engagement per view**, counting shares and saves more than likes, relative to your median reel. That score (0 to 100) is the reward.
+3. The reward is credited to the choices you used: style, pace, caption animation and transition.
+4. Studio suggests the best-scoring choices (**Use these** in Studio) and applies them automatically to scripts it generates from a reel. Untried options keep a small chance, so it keeps exploring.
+
+Separately, **Insights → What's working in your hooks** compares your reels' first lines (a number, a question, "you", short, money, a problem) and shows how much more engagement each trait earned.
+
+This is a bandit-style learning loop over a few choices, not a model that edits videos. It needs several linked posts before its suggestions mean much, and engagement depends on much more than style. *Reset* clears it.
+
+## Hand rendering to your own pipeline (optional)
+
+Settings → paste an n8n / Make / Zapier / custom API URL. *Render video* then POSTs:
 
 ```json
 { "handle": "yourbrand", "title": "...", "duration": "0:27",
-  "script": [{"type":"hook|body|comment","text":"..."}],
-  "text": "full script", "wordCount": 70, "format": "9:16",
+  "script": [{"type":"hook|body|comment","text":"..."}], "text": "full script", "wordCount": 70, "format": "9:16",
   "style": { "theme": "Neon", "pace": "Balanced",
+             "effects": { "caption": "bounce", "transition": "flash", "camera": "shake", "particles": "confetti", "glow": true, "grain": false, "chroma": true, "motifs": true },
              "colors": { "bg": "#07000f", "fg": "#ffffff", "accent": "#ff2bd6" } },
-  "virality": 86, "createdAt": "ISO" }
+  "scenes": [{ "motif": "chart", "emphasis": ["numbers"] }], "virality": 86, "createdAt": "ISO" }
 ```
 
-Your endpoint may answer with `{ "videoUrl": "https://..." }` (done), `{ "statusUrl": "https://..." }`
-(polled every 2 s for `{ "status", "progress": 0-100, "videoUrl" }`), or fail, in which case Studio renders in the browser instead.
-The endpoint must allow CORS from the page's origin.
-
-## Connect your Instagram account
-
-Insights reads your own account through Meta's official **Instagram API**. It is read-only: the page never posts or changes anything.
-
-1. Your Instagram account must be a **Business or Creator** (professional) account.
-2. At [developers.facebook.com](https://developers.facebook.com) create an app (type *Business*) and add the **Instagram** product.
-3. Under *API setup with Instagram login*, add your account and click **Generate token**. Allow `instagram_business_basic` and `instagram_business_manage_insights`.
-4. In Reel Studio click **Connect Instagram** and paste the token. (Facebook Login also works; it needs your Instagram user ID.)
-
-What you get: views, accounts reached, new followers, interactions, follower growth, the follower / non-follower split, a posting calendar and streak, your top reels with thumbnails, and per-reel likes, comments, shares, saves, reach and average watch time.
-
-Things to know:
-- Your token is sent only from your browser to Meta. It stays in `sessionStorage` (cleared when the tab closes) unless you tick *Remember on this device*. Anyone with the token can read your insights, so don't remember it on a shared computer. **Disconnect** deletes it.
-- Meta limits these insight windows to **30 days**, so the ranges are 7, 14 and 30 days.
-- Some metrics are not available on accounts under 100 followers. Anything Meta refuses is listed under *metrics unavailable* instead of breaking the page.
-- Tokens expire (about 60 days for long-lived ones). When that happens the page says so and offers *Reconnect*.
-- The Graph API has no per-minute "views since posting" curve, so the live reel breakdown shows lifetime numbers instead.
-- Posting to Instagram from here is not included: Meta's publishing API needs a public video URL and app review.
+Your endpoint may answer with `{ "videoUrl": "https://..." }` (done), `{ "statusUrl": "https://..." }` (polled every 2 s for `{ "status", "progress": 0-100, "videoUrl" }`), or fail, in which case Studio renders in the browser. The endpoint must allow CORS from the page's origin.
 
 ## The virality score
 
-A rule-based score out of 100, not a trained model. It starts at 100 and loses points for a hook that isn't first or takes over 3.5 s to say, no number or "you" in the hook, lines over 24 words, empty lines, no comment call-to-action, a total length under 12 s or over 75 s, and no turn word ("instead", "but", "so"). Each fix is pinned to the second it applies to. Speaking speed is 2.2, 2.6 or 3.2 words per second for Calm, Balanced and Punchy.
+A rule-based score out of 100, not a trained model. It starts at 100 and loses points for a hook that isn't first or takes over 3.5 s to say, no number or "you" in the hook, lines over 24 words, empty lines, no comment call-to-action, a length under 12 s or over 75 s, and no turn word ("instead", "but", "so"). Each fix is pinned to the second it applies to. Speaking speed is 2.2, 2.6 or 3.2 words per second for Calm, Balanced and Punchy.
 
 ## Files
 
 - `index.html`, `styles.css`: the interface
-- `app.js`: the six screens and app logic
-- `video.js`: the video engine (scene planner, animated renderer, recorder, beat synthesizer)
-- `instagram.js`: the Instagram client
+- `app.js`: the six screens, dialogs and app logic
+- `video.js`: the video engine (scene planner, animated renderer, effects, recorder, beat synthesizer)
+- `instagram.js`: the Instagram client (multiple accounts)
+- `ai.js`: the Claude client
+- `tools.js`: pure logic with no page code: link parsing, script splitting, paste handling, hook analysis and the learning loop
+- `tests/tools.test.js`: unit tests for `tools.js`. Run `node tests/tools.test.js`
 
 Research on the reference landing page is on the [`rea-output` branch](../../tree/rea-output/2026-11-18-getripping-landing).

@@ -21,6 +21,7 @@
     <nav class="nav" id="nav" aria-label="Workflow"><span class="glider" id="glider"></span></nav>
     <div class="rail-foot">
       <button class="igcard" id="igCard" type="button"></button>
+      <button class="igcard aicard" id="aiCard" type="button"></button>
       <button class="rail-link" id="openSettings" type="button">Settings &amp; automation</button>
     </div>
   </aside>
@@ -43,16 +44,19 @@
 <dialog id="settings">
   <form method="dialog" class="dlg">
     <h3>Settings &amp; automation</h3>
-    <p class="muted">Point Studio at your own video pipeline (n8n, Make, Zapier or an API) and it will POST the script, style and virality score as JSON. Leave it empty to render videos right here in your browser.</p>
+    <label>Your niche <small class="muted">(used when Claude writes scripts)</small>
+      <input id="setNiche" type="text" placeholder="SaaS founders">
+    </label>
+    <label>Handle shown on videos
+      <input id="setHandle" type="text" placeholder="yourbrand">
+      <small class="muted" id="handleNote"></small>
+    </label>
+    <p class="muted">Optional: point Studio at your own video pipeline (n8n, Make, Zapier or an API). It will POST the script, style, effects and virality score as JSON. Leave it empty to render videos right here in your browser.</p>
     <label>Webhook URL
       <input id="setWebhook" type="url" placeholder="https://your-n8n.example.com/webhook/video">
     </label>
     <label>Auth header (optional)
       <input id="setAuth" type="text" placeholder="Bearer sk-…" autocomplete="off">
-    </label>
-    <label>Handle shown on videos
-      <input id="setHandle" type="text" placeholder="yourbrand">
-      <small class="muted" id="handleNote"></small>
     </label>
     <div class="row end">
       <button type="button" class="linkbtn danger" id="resetAll" style="margin-right:auto">Reset all data</button>
@@ -82,8 +86,10 @@
 
 <dialog id="igDialog">
   <form method="dialog" class="dlg" id="igForm">
-    <h3>Connect your Instagram account</h3>
-    <p class="muted">Works with Business and Creator accounts. Studio reads your insights through Meta's official API. It only reads, never posts, and your token goes straight from this browser to Meta.</p>
+    <h3>Instagram accounts</h3>
+    <p class="muted">Connect as many Business or Creator accounts as you manage. Studio reads their insights through Meta's official API. It only reads, never posts, and each token goes straight from this browser to Meta.</p>
+    <div id="igList" class="acctlist"></div>
+    <div class="lab">Add an account</div>
     <label>Login type
       <select id="igHost">
         <option value="graph.instagram.com">Instagram Login (recommended)</option>
@@ -91,7 +97,7 @@
       </select>
     </label>
     <label>Access token
-      <input id="igToken" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your access token">
+      <input id="igToken" type="password" autocomplete="off" spellcheck="false" placeholder="Paste this account's access token">
     </label>
     <label>Instagram user ID <small class="muted">(only needed for Facebook Login)</small>
       <input id="igId" type="text" inputmode="numeric" autocomplete="off" placeholder="17841400000000000">
@@ -102,19 +108,87 @@
       <summary>How do I get a token?</summary>
       <ol>
         <li>Open <b>developers.facebook.com</b>, create an app (type: Business) and add the <b>Instagram</b> product.</li>
-        <li>Under <b>API setup with Instagram login</b>, add your Instagram professional account and click <b>Generate token</b>.</li>
+        <li>Under <b>API setup with Instagram login</b>, add the Instagram professional account and click <b>Generate token</b>. Repeat for each account.</li>
         <li>Allow <code>instagram_business_basic</code> and <code>instagram_business_manage_insights</code>, then paste the token here.</li>
       </ol>
-      <p>Tokens expire (about 60 days for long-lived ones). Anyone with the token can read your insights, so don't save it on a shared computer.</p>
+      <p>Tokens expire (about 60 days for long-lived ones). Anyone with a token can read that account's insights, so don't save it on a shared computer.</p>
     </details>
     <div class="row end">
-      <button type="button" class="linkbtn danger" id="igDisconnect" style="margin-right:auto" hidden>Disconnect</button>
       <button value="cancel" class="btn ghost">Close</button>
-      <button type="button" class="btn primary" id="igTest">Test &amp; connect</button>
+      <button type="button" class="btn primary" id="igTest">Test &amp; add account</button>
     </div>
   </form>
 </dialog>
 
+<dialog id="apiDialog">
+  <form method="dialog" class="dlg">
+    <h3>AI &amp; integrations</h3>
+    <p class="muted">Add your Claude API key and Studio can do the heavy lifting for you.</p>
+    <ul class="perks">
+      <li><b>Import a reel as a script.</b> Paste a link or its caption and Claude writes a fresh hook and lines in your own words.</li>
+      <li><b>Direct the video.</b> Claude picks an icon and highlighted words for every scene, plus the style, pace and effects.</li>
+      <li><b>Make one like your best reels.</b> Claude studies a winner's structure and writes a new script on your topic.</li>
+    </ul>
+    <label>Claude API key
+      <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
+    </label>
+    <label>Model
+      <select id="apiModel"></select>
+    </label>
+    <label class="check"><input id="apiRemember" type="checkbox"> Remember this key on this device</label>
+    <p class="note" id="apiMsg" role="status"></p>
+    <details class="how">
+      <summary>Where do I get a key, and what does it cost?</summary>
+      <ol>
+        <li>Sign in at <b>console.anthropic.com</b> and open <b>API keys</b>, then create a key.</li>
+        <li>Add a little credit under <b>Billing</b>. Each script or direction costs a small fraction of a cent to a few cents depending on the model.</li>
+      </ol>
+      <p>Your key is stored only in this browser and requests go straight to Anthropic, never through anyone else. Set a monthly spend limit on the key in the console, and don't remember it on a shared computer. Anyone using this browser profile could use it.</p>
+    </details>
+    <div class="row end">
+      <button type="button" class="linkbtn danger" id="apiRemove" style="margin-right:auto" hidden>Remove key</button>
+      <button value="cancel" class="btn ghost">Close</button>
+      <button type="button" class="btn primary" id="apiTest">Test &amp; save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="importDialog">
+  <form method="dialog" class="dlg">
+    <h3>Import a reel as a script</h3>
+    <div class="refcard" id="impRef"></div>
+    <p class="note" id="impStatus" role="status"></p>
+    <label>Caption, or what the reel says
+      <textarea id="impText" rows="7" placeholder="Paste the caption or a transcript. The first sentence becomes the hook and the rest flows into lines."></textarea>
+    </label>
+    <label class="check"><input id="impRewrite" type="checkbox"> Rewrite it in my own words with Claude</label>
+    <p class="muted small" id="impHint"></p>
+    <div class="row end">
+      <button value="cancel" class="btn ghost">Cancel</button>
+      <button type="button" class="btn primary" id="impGo">Create script</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="genDialog">
+  <form method="dialog" class="dlg">
+    <h3>Make one like this</h3>
+    <div class="refcard" id="genRef"></div>
+    <div class="chips" id="genWhy"></div>
+    <label>New topic <small class="muted">(optional)</small>
+      <input id="genTopic" type="text" placeholder="e.g. onboarding emails. Leave empty for a similar topic" autocomplete="off">
+    </label>
+    <p class="note" id="genMsg" role="status"></p>
+    <div class="row end">
+      <button value="cancel" class="btn ghost">Cancel</button>
+      <button type="button" class="btn" id="genCopy">Copy its structure</button>
+      <button type="button" class="btn primary" id="genGo"></button>
+    </div>
+  </form>
+</dialog>
+
+<script src="tools.js"></script>
+<script src="ai.js"></script>
 <script src="video.js"></script>
 <script src="instagram.js"></script>
 <script src="app.js"></script>
