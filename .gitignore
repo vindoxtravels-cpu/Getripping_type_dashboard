@@ -1,0 +1,16 @@
+# Keep analyzed targets and heavy intermediates out of the repo
+*.app/
+*.dmg
+*.exe
+*.dll
+*.dylib
+*.so
+*.apk
+*.ipa
+*.asar
+*.zip
+*.gpr
+*.rep/
+*.hop
+node_modules/
+.DS_Store
