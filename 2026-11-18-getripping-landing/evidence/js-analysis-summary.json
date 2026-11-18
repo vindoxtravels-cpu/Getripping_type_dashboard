@@ -1,0 +1,622 @@
+{
+ "summary": {
+  "evidence_id": "ev_558678398c9a19c604d634f4da61caf7ca623725465c3a4a55c010a7f5e54c4b",
+  "evidence_format": 2,
+  "subject": {
+   "identity": {
+    "kind": "file",
+    "sha256": "d5c26dc3d088c7e5a635573d81a7e27ae4da101ff58975a71ca690ec4ca5e5b2",
+    "selection": null,
+    "format": "directory",
+    "architecture": null
+   },
+   "name": "app",
+   "local_path": "<workdir>/app"
+  },
+  "provider": {
+   "id": "rea-analysis-view",
+   "name": "REA analysis view projection",
+   "version": "1"
+  },
+  "analysis_profile": null,
+  "predicate_type": "rea.analysis-view",
+  "operation": "inspect_analysis_view",
+  "parameters": {
+   "parent_evidence_id": "ev_20991cba6da40c67b4417406f26652032be7cf1dbb4ddff783cca56bb6dc0b00",
+   "view": {
+    "kind": "summary"
+   }
+  },
+  "raw_result": null,
+  "normalized_result": {
+   "kind": "summary",
+   "view": {
+    "kind": "summary"
+   },
+   "parent_evidence_id": "ev_20991cba6da40c67b4417406f26652032be7cf1dbb4ddff783cca56bb6dc0b00",
+   "parent_operation": "analyze_javascript_application",
+   "parent_digest": "20991cba6da40c67b4417406f26652032be7cf1dbb4ddff783cca56bb6dc0b00",
+   "view_digest": "ac3b0bf625093a4aaa2b50acc085214a77878fc66f9738b0df439f7b5b77d79f",
+   "artifact": {
+    "path": "<workdir>/app",
+    "sha256": "d5c26dc3d088c7e5a635573d81a7e27ae4da101ff58975a71ca690ec4ca5e5b2"
+   },
+   "coverage": {
+    "status": "complete-within-view",
+    "examined": 648,
+    "total": 648,
+    "next_offset": null,
+    "exhausted": true
+   },
+   "limitations": [
+    "0pei07_4jdxky.js: Resource constraint during analyze_javascript_application: Semantic graph for 0pei07_4jdxky.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "0ruj-ach0ikjv.js: Resource constraint during analyze_javascript_application: Semantic graph for 0ruj-ach0ikjv.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "15qquys5i_1ki.js: Resource constraint during analyze_javascript_application: Semantic graph for 15qquys5i_1ki.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "1_s-uuoqp9kz9.js: Resource constraint during analyze_javascript_application: Semantic graph for 1_s-uuoqp9kz9.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "1ew1jtg91_rq2.js: Resource constraint during analyze_javascript_application: Semantic graph for 1ew1jtg91_rq2.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "1h30okehacols.js: Resource constraint during analyze_javascript_application: Semantic graph for 1h30okehacols.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "1nas97cp0fyoe.js: Resource constraint during analyze_javascript_application: Semantic graph for 1nas97cp0fyoe.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "1tvdwjlzfn-p6.js: Resource constraint during analyze_javascript_application: Semantic graph for 1tvdwjlzfn-p6.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "1w0yoq39093op.js: Resource constraint during analyze_javascript_application: Semantic graph for 1w0yoq39093op.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "1xjgyolque1so.js: Resource constraint during analyze_javascript_application: Semantic graph for 1xjgyolque1so.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "23ualli88ljuv.js: Resource constraint during analyze_javascript_application: Semantic graph for 23ualli88ljuv.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "2akgj054t9gx9.js: Resource constraint during analyze_javascript_application: JavaScript member-mutation analysis scheduled more than 524288 alias states for one source",
+    "2awcp6nzezgpp.js: Resource constraint during analyze_javascript_application: Semantic graph for 2awcp6nzezgpp.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "2n0zvdicxs224.js: Resource constraint during analyze_javascript_application: Semantic graph for 2n0zvdicxs224.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "2un0s549ur0xc.js: Resource constraint during analyze_javascript_application: Semantic graph for 2un0s549ur0xc.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "3fcbaawkoj_do.js: Resource constraint during analyze_javascript_application: Semantic graph for 3fcbaawkoj_do.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "40n0zj8a9jdnl.js: Resource constraint during analyze_javascript_application: Semantic graph for 40n0zj8a9jdnl.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "Alias selection expansion was conservatively bounded (maximum 512 additional selector states); selected paths remain unknown. Semantic alias-selections budget reached: semantic_precision.alias_selections=512 additional selector states (default 512). Increase semantic_precision.alias_selections on the next analysis call (analyze_javascript_application or analyze_web_bundle); no REA restart is required. Worker memory, transfer and graph-retention limits remain independent. Cyclic or unsupported evaluations remain unknown regardless of budget.",
+    "Boundary extraction covers unshadowed JSON/global coercions plus parse and validation method candidates.",
+    "Child-process extraction covers asynchronous node:child_process creation, literal argv/env/stdio options, exit/error listeners, and kill signals.",
+    "CommonJS and ESM binding relationships were recovered from inert syntax and resolved only within the inventoried artifact container.",
+    "Configuration extraction covers process.env, process.argv, node:fs reads, and direct logical defaults.",
+    "Event extraction covers EventEmitter-style literal registrations, removals, and dispatch candidates; dynamic names remain unknown.",
+    "Function fingerprints are static candidates; equal digests can remain ambiguous and do not prove behavioral equivalence.",
+    "22 additional limitations omitted from this view; consult source parent Evidence ev_20991cba6da40c67b4417406f26652032be7cf1dbb4ddff783cca56bb6dc0b00 for the complete list (the caller-supplied record, or its retaining session)."
+   ],
+   "unknowns": [
+    "0pei07_4jdxky.js: Resource constraint during analyze_javascript_application: Semantic graph for 0pei07_4jdxky.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "0ruj-ach0ikjv.js: Resource constraint during analyze_javascript_application: Semantic graph for 0ruj-ach0ikjv.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "15qquys5i_1ki.js: Resource constraint during analyze_javascript_application: Semantic graph for 15qquys5i_1ki.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "1_s-uuoqp9kz9.js: Resource constraint during analyze_javascript_application: Semantic graph for 1_s-uuoqp9kz9.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "1ew1jtg91_rq2.js: Resource constraint during analyze_javascript_application: Semantic graph for 1ew1jtg91_rq2.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "1h30okehacols.js: Resource constraint during analyze_javascript_application: Semantic graph for 1h30okehacols.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "1nas97cp0fyoe.js: Resource constraint during analyze_javascript_application: Semantic graph for 1nas97cp0fyoe.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "1tvdwjlzfn-p6.js: Resource constraint during analyze_javascript_application: Semantic graph for 1tvdwjlzfn-p6.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "1w0yoq39093op.js: Resource constraint during analyze_javascript_application: Semantic graph for 1w0yoq39093op.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "1xjgyolque1so.js: Resource constraint during analyze_javascript_application: Semantic graph for 1xjgyolque1so.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "23ualli88ljuv.js: Resource constraint during analyze_javascript_application: Semantic graph for 23ualli88ljuv.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "26 application graph unknowns remain in the parent Evidence.",
+    "2akgj054t9gx9.js: Resource constraint during analyze_javascript_application: JavaScript member-mutation analysis scheduled more than 524288 alias states for one source",
+    "2awcp6nzezgpp.js: Resource constraint during analyze_javascript_application: Semantic graph for 2awcp6nzezgpp.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "2n0zvdicxs224.js: Resource constraint during analyze_javascript_application: Semantic graph for 2n0zvdicxs224.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "2un0s549ur0xc.js: Resource constraint during analyze_javascript_application: Semantic graph for 2un0s549ur0xc.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "38131 semantic graph unknowns remain in the parent Evidence.",
+    "3fcbaawkoj_do.js: Resource constraint during analyze_javascript_application: Semantic graph for 3fcbaawkoj_do.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "40n0zj8a9jdnl.js: Resource constraint during analyze_javascript_application: Semantic graph for 40n0zj8a9jdnl.js exceeds the parent's remaining result budget; static and module facts were retained",
+    "Alias selection expansion was conservatively bounded (maximum 512 additional selector states); selected paths remain unknown. Semantic alias-selections budget reached: semantic_precision.alias_selections=512 additional selector states (default 512). Increase semantic_precision.alias_selections on the next analysis call (analyze_javascript_application or analyze_web_bundle); no REA restart is required. Worker memory, transfer and graph-retention limits remain independent. Cyclic or unsupported evaluations remain unknown regardless of budget.",
+    "Boundary extraction covers unshadowed JSON/global coercions plus parse and validation method candidates.",
+    "Child-process extraction covers asynchronous node:child_process creation, literal argv/env/stdio options, exit/error listeners, and kill signals.",
+    "CommonJS and ESM binding relationships were recovered from inert syntax and resolved only within the inventoried artifact container.",
+    "Configuration extraction covers process.env, process.argv, node:fs reads, and direct logical defaults.",
+    "Graph coverage is incomplete; unavailable facts remain explicit and must not be read as absence.",
+    "graph.coverage.status is partial",
+    "semantic_graph.coverage.status is partial",
+    "23 additional unknowns omitted from this view; consult source parent Evidence ev_20991cba6da40c67b4417406f26652032be7cf1dbb4ddff783cca56bb6dc0b00 for the complete list (the caller-supplied record, or its retaining session)."
+   ],
+   "summary": {
+    "input_path": "<workdir>/app",
+    "format": "directory",
+    "root_artifact_sha256": "d5c26dc3d088c7e5a635573d81a7e27ae4da101ff58975a71ca690ec4ca5e5b2",
+    "statistics": {
+     "relevant_files": 35,
+     "nested_asar_containers": 0,
+     "text_bytes_read": 6385131,
+     "invalid_utf8_files": 0,
+     "parsed_javascript_files": 34,
+     "skipped_javascript_files": 0,
+     "visited_ast_nodes": 1367072,
+     "findings": 3363,
+     "modules": 842,
+     "parse_failures": 0
+    },
+    "electron": {
+     "browser_windows": 0,
+     "explicit_web_preferences": 0,
+     "preload_entrypoints": 0,
+     "context_bridge_apis": 0,
+     "exposed_api_members": 0,
+     "ipc": {
+      "operations": 0,
+      "literal_channels": 0,
+      "dynamic_channel_operations": 0,
+      "renderer_transmissions": 0,
+      "renderer_listeners": 0,
+      "main_handlers": 0,
+      "paired_renderer_transmissions": 0,
+      "ambiguous_renderer_transmissions": 0,
+      "unpaired_literal_renderer_transmissions": 0
+     },
+     "sender_validation_observations": 1,
+     "utility_processes": 0,
+     "resolved_utility_entrypoints": 0,
+     "native_addon_bindings": 0,
+     "resolved_native_addon_bindings": 0,
+     "protocol_registrations": 0,
+     "v8_cached_data_compilations": 0
+    },
+    "coverage": {
+     "static_sources": {
+      "sources": 34,
+      "unmeasured_sources": 0,
+      "syntax": {
+       "complete": 34,
+       "recovered": 0,
+       "failed": 0,
+       "not-examined": 0
+      },
+      "semantics": {
+       "unknown_sources": 27,
+       "unexamined_sources": 1
+      },
+      "examination": {
+       "complete": 19,
+       "limited": 14,
+       "not-examined": 1
+      },
+      "electron_applicability": {
+       "observed": 0,
+       "unknown": 34
+      }
+     },
+     "application": {
+      "status": "partial",
+      "truncated": false,
+      "omitted_count": null,
+      "limits": [
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 101800288,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 102949598,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 1486842,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 24282634,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 25870632,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 28092838,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 38735434,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 41556152,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 41699580,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 42987312,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 43600990,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 44356448,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 45652290,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 4800852,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 48738410,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 49958808,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 50035538,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 50249794,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 7620522,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 9613642,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 9724318,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 9957572,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_result_budget_bytes",
+        "value": 1028936980,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_semantic_result_budget_bytes",
+        "value": 0,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_worker_heap_limit_bytes",
+        "value": 1098907648,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_worker_timeout_ms",
+        "value": 300000,
+        "unit": "milliseconds"
+       },
+       {
+        "name": "javascript_semantic_alias_selections",
+        "value": 512,
+        "unit": "items"
+       }
+      ]
+     },
+     "semantic": {
+      "status": "partial",
+      "truncated": true,
+      "omitted_nodes": null,
+      "omitted_relations": null,
+      "limits": [
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 101800288,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 102949598,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 24282634,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 25870632,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 28092838,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 38735434,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 41556152,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 41699580,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 42987312,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 43600990,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 44356448,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 45652290,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 48738410,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 49958808,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 50035538,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 50249794,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 7620522,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 9613642,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 9724318,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_available_result_budget_bytes",
+        "value": 9957572,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_parent_result_budget_bytes",
+        "value": 1028936980,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_semantic_result_budget_bytes",
+        "value": 0,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_worker_heap_limit_bytes",
+        "value": 1098907648,
+        "unit": "bytes"
+       },
+       {
+        "name": "javascript_analysis_worker_timeout_ms",
+        "value": 300000,
+        "unit": "milliseconds"
+       },
+       {
+        "name": "max_semantic_nodes",
+        "value": 100000,
+        "unit": "items"
+       },
+       {
+        "name": "max_semantic_nodes_per_file",
+        "value": 20000,
+        "unit": "items"
+       },
+       {
+        "name": "semantic_graph_file_node_ceiling",
+        "value": 20000,
+        "unit": "items"
+       },
+       {
+        "name": "semantic_graph_node_ceiling",
+        "value": 100000,
+        "unit": "items"
+       }
+      ],
+      "controls": [
+       {
+        "control_kind": "parameter",
+        "parameter": "max_semantic_nodes_per_file",
+        "effective_value": 20000,
+        "unit": "count",
+        "minimum": 1,
+        "maximum": 1000000,
+        "default_value": 20000,
+        "applies_at": "next_call"
+       },
+       {
+        "control_kind": "parameter",
+        "parameter": "semantic_precision.alias_selections",
+        "effective_value": 512,
+        "unit": "count",
+        "minimum": 1,
+        "maximum": 9007199254740991,
+        "default_value": 512,
+        "applies_at": "next_call"
+       }
+      ],
+      "families": [
+       {
+        "family": "boundary",
+        "status": "partial",
+        "retained_relations": 2,
+        "omitted_relations": null,
+        "unknown_count": 23
+       },
+       {
+        "family": "call-flow",
+        "status": "partial",
+        "retained_relations": 6633,
+        "omitted_relations": null,
+        "unknown_count": 8058
+       },
+       {
+        "family": "child-process",
+        "status": "partial",
+        "retained_relations": 0,
+        "omitted_relations": null,
+        "unknown_count": 23
+       },
+       {
+        "family": "closure",
+        "status": "partial",
+        "retained_relations": 6959,
+        "omitted_relations": null,
+        "unknown_count": 23
+       },
+       {
+        "family": "configuration",
+        "status": "partial",
+        "retained_relations": 0,
+        "omitted_relations": null,
+        "unknown_count": 23
+       },
+       {
+        "family": "data-flow",
+        "status": "partial",
+        "retained_relations": 42317,
+        "omitted_relations": null,
+        "unknown_count": 15205
+       },
+       {
+        "family": "event",
+        "status": "partial",
+        "retained_relations": 0,
+        "omitted_relations": null,
+        "unknown_count": 23
+       },
+       {
+        "family": "object-flow",
+        "status": "partial",
+        "retained_relations": 1800,
+        "omitted_relations": null,
+        "unknown_count": 14648
+       },
+       {
+        "family": "promise-ownership",
+        "status": "partial",
+        "retained_relations": 28,
+        "omitted_relations": null,
+        "unknown_count": 33
+       },
+       {
+        "family": "request",
+        "status": "partial",
+        "retained_relations": 10,
+        "omitted_relations": null,
+        "unknown_count": 23
+       },
+       {
+        "family": "resource-lifecycle",
+        "status": "partial",
+        "retained_relations": 0,
+        "omitted_relations": null,
+        "unknown_count": 23
+       },
+       {
+        "family": "timer",
+        "status": "partial",
+        "retained_relations": 5,
+        "omitted_relations": null,
+        "unknown_count": 26
+       }
+      ]
+     },
+     "application_unknowns": 26,
+     "semantic_unknowns": 38131
+    },
+    "limitation_count": 46
+   }
+  },
+  "confidence": "derived",
+  "authority": "shipped-artifact",
+  "environment": null,
+  "limitations": [
+   "0pei07_4jdxky.js: Resource constraint during analyze_javascript_application: Semantic graph for 0pei07_4jdxky.js exceeds the parent's remaining result budget; static and module facts were retained",
+   "0ruj-ach0ikjv.js: Resource constraint during analyze_javascript_application: Semantic graph for 0ruj-ach0ikjv.js exceeds the parent's remaining result budget; static and module facts were retained",
+   "15qquys5i_1ki.js: Resource constraint during analyze_javascript_application: Semantic graph for 15qquys5i_1ki.js exceeds the parent's remaining result budget; static and module facts were retained",
+   "1_s-uuoqp9kz9.js: Resource constraint during analyze_javascript_application: Semantic graph for 1_s-uuoqp9kz9.js exceeds the parent's remaining result budget; static and module facts were retained",
+   "1ew1jtg91_rq2.js: Resource constraint during analyze_javascript_application: Semantic graph for 1ew1jtg91_rq2.js exceeds the parent's remaining result budget; static and module facts were retained",
+   "1h30okehacols.js: Resource constraint during analyze_javascript_application: Semantic graph for 1h30okehacols.js exceeds the parent's remaining result budget; static and module facts were retained",
+   "1nas97cp0fyoe.js: Resource constraint during analyze_javascript_application: Semantic graph for 1nas97cp0fyoe.js exceeds the parent's remaining result budget; static and module facts were retained",
+   "1tvdwjlzfn-p6.js: Resource constraint during analyze_javascript_application: Semantic graph for 1tvdwjlzfn-p6.js exceeds the parent's remaining result budget; static and module facts were retained",
+   "1w0yoq39093op.js: Resource constraint during analyze_javascript_application: Semantic graph for 1w0yoq39093op.js exceeds the parent's remaining result budget; static and module facts were retained",
+   "1xjgyolque1so.js: Resource constraint during analyze_javascript_application: Semantic graph for 1xjgyolque1so.js exceeds the parent's remaining result budget; static and module facts were retained",
+   "23ualli88ljuv.js: Resource constraint during analyze_javascript_application: Semantic graph for 23ualli88ljuv.js exceeds the parent's remaining result budget; static and module facts were retained",
+   "2akgj054t9gx9.js: Resource constraint during analyze_javascript_application: JavaScript member-mutation analysis scheduled more than 524288 alias states for one source",
+   "2awcp6nzezgpp.js: Resource constraint during analyze_javascript_application: Semantic graph for 2awcp6nzezgpp.js exceeds the parent's remaining result budget; static and module facts were retained",
+   "2n0zvdicxs224.js: Resource constraint during analyze_javascript_application: Semantic graph for 2n0zvdicxs224.js exceeds the parent's remaining result budget; static and module facts were retained",
+   "2un0s549ur0xc.js: Resource constraint during analyze_javascript_application: Semantic graph for 2un0s549ur0xc.js exceeds the parent's remaining result budget; static and module facts were retained",
+   "3fcbaawkoj_do.js: Resource constraint during analyze_javascript_application: Semantic graph for 3fcbaawkoj_do.js exceeds the parent's remaining result budget; static and module facts were retained",
+   "40n0zj8a9jdnl.js: Resource constraint during analyze_javascript_application: Semantic graph for 40n0zj8a9jdnl.js exceeds the parent's remaining result budget; static and module facts were retained",
+   "Alias selection expansion was conservatively bounded (maximum 512 additional selector states); selected paths remain unknown. Semantic alias-selections budget reached: semantic_precision.alias_selections=512 additional selector states (default 512). Increase semantic_precision.alias_selections on the next analysis call (analyze_javascript_application or analyze_web_bundle); no REA restart is required. Worker memory, transfer and graph-retention limits remain independent. Cyclic or unsupported evaluations remain unknown regardless of budget.",
+   "Boundary extraction covers unshadowed JSON/global coercions plus parse and validation method candidates.",
+   "Child-process extraction covers asynchronous node:child_process creation, literal argv/env/stdio options, exit/error listeners, and kill signals.",
+   "CommonJS and ESM binding relationships were recovered from inert syntax and resolved only within the inventoried artifact container.",
+   "Configuration extraction covers process.env, process.argv, node:fs reads, and direct logical defaults.",
+   "Event extraction covers EventEmitter-style literal registrations, removals, and dispatch candidates; dynamic names remain unknown.",
+   "Function fingerprints are static candidates; equal digests can remain ambiguous and do not prove behavioral equivalence.",
+   "22 additional limitations omitted from this view; consult source parent Evidence ev_20991cba6da40c67b4417406f26652032be7cf1dbb4ddff783cca56bb6dc0b00 for the complete list (the caller-supplied record, or its retaining session)."
+  ],
+  "relationship_coverage": null,
+  "locations": [
+   {
+    "kind": "artifact-path",
+    "path": "<workdir>/app"
+   }
+  ],
+  "evidence_links": [
+   "ev_20991cba6da40c67b4417406f26652032be7cf1dbb4ddff783cca56bb6dc0b00"
+  ]
+ },
+ "evidence_bundle": {
+  "path": "<workdir>/evidence.json",
+  "bytes": 125805771
+ }
+}
