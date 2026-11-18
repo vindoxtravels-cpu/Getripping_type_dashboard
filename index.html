@@ -122,33 +122,52 @@
 
 <dialog id="apiDialog">
   <form method="dialog" class="dlg">
-    <h3>AI &amp; integrations</h3>
-    <p class="muted">Add your Claude API key and Studio can do the heavy lifting for you.</p>
-    <ul class="perks">
-      <li><b>Import a reel as a script.</b> Paste a link or its caption and Claude writes a fresh hook and lines in your own words.</li>
-      <li><b>Direct the video.</b> Claude picks an icon and highlighted words for every scene, plus the style, pace and effects.</li>
-      <li><b>Make one like your best reels.</b> Claude studies a winner's structure and writes a new script on your topic.</li>
-    </ul>
-    <label>Claude API key
-      <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
-    </label>
-    <label>Model
-      <select id="apiModel"></select>
-    </label>
-    <label class="check"><input id="apiRemember" type="checkbox"> Remember this key on this device</label>
-    <p class="note" id="apiMsg" role="status"></p>
+    <h3>AI &amp; voice</h3>
+    <div class="apisec">
+      <div class="apihead"><b>Claude</b><div class="seg" id="aiTabs"><button type="button" data-mode="signin">Sign in</button><button type="button" data-mode="key">API key</button></div></div>
+      <p class="muted small">Powers script import, scene direction and “make one like this”.</p>
+      <div id="aiSignin" class="apibox"></div>
+      <div id="aiKeyBox" class="apibox" hidden>
+        <label>Claude API key
+          <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
+        </label>
+        <label>Model
+          <select id="apiModel"></select>
+        </label>
+        <label class="check"><input id="apiRemember" type="checkbox"> Remember this key on this device</label>
+        <div class="row end">
+          <button type="button" class="linkbtn danger" id="apiRemove" style="margin-right:auto" hidden>Remove key</button>
+          <button type="button" class="btn primary" id="apiTest">Test &amp; save</button>
+        </div>
+      </div>
+      <p class="note" id="apiMsg" role="status"></p>
+    </div>
+    <div class="apisec">
+      <div class="apihead"><b>Voice</b></div>
+      <div class="vrow"><span>Edge voices <small class="muted">free · neural · through the helper</small></span><span id="edgeState" class="chip"></span></div>
+      <div class="vrow"><span>ElevenLabs <small class="muted">your API key</small></span><span id="elState" class="chip"></span></div>
+      <div id="elBox" class="apibox">
+        <label>ElevenLabs API key
+          <input id="elKey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your ElevenLabs key">
+        </label>
+        <label class="check"><input id="elRemember" type="checkbox"> Remember this key on this device</label>
+        <div class="row end">
+          <button type="button" class="linkbtn danger" id="elRemove" style="margin-right:auto" hidden>Remove key</button>
+          <button type="button" class="btn" id="elTest">Test &amp; save</button>
+        </div>
+      </div>
+      <p class="note" id="elMsg" role="status"></p>
+    </div>
     <details class="how">
-      <summary>Where do I get a key, and what does it cost?</summary>
-      <ol>
-        <li>Sign in at <b>console.anthropic.com</b> and open <b>API keys</b>, then create a key.</li>
-        <li>Add a little credit under <b>Billing</b>. Each script or direction costs a small fraction of a cent to a few cents depending on the model.</li>
-      </ol>
-      <p>Your key is stored only in this browser and requests go straight to Anthropic, never through anyone else. Set a monthly spend limit on the key in the console, and don't remember it on a shared computer. Anyone using this browser profile could use it.</p>
+      <summary>How do these work, and what does it cost?</summary>
+      <p><b>Sign in</b> uses your own Claude Code on this computer, signed in to your Claude account, so usage comes from your Claude plan and no API key is needed. It needs the helper (<code>./bridge/start.sh</code>) and is meant for your own personal use on your own machine. For anything shared, hosted or commercial use an API key instead: Anthropic provides account sign-in for Claude Code itself, not for other apps.</p>
+      <p><b>API key:</b> create one at console.anthropic.com and add a little credit. Each request costs a small fraction of a cent to a few cents. Set a spend limit on the key.</p>
+      <p><b>Edge voices</b> are Microsoft's read-aloud voices. They are free but unofficial: Microsoft does not publish a public API for them, so they could change or stop working.</p>
+      <p><b>ElevenLabs:</b> get a key in your ElevenLabs profile. Voice-overs use your plan's credits (about one credit per character).</p>
+      <p>Keys stay in this browser (this session only unless you tick Remember) and go straight to the service. Don't remember them on a shared computer.</p>
     </details>
     <div class="row end">
-      <button type="button" class="linkbtn danger" id="apiRemove" style="margin-right:auto" hidden>Remove key</button>
       <button value="cancel" class="btn ghost">Close</button>
-      <button type="button" class="btn primary" id="apiTest">Test &amp; save</button>
     </div>
   </form>
 </dialog>
@@ -187,8 +206,10 @@
   </form>
 </dialog>
 
+<script src="helper.js"></script>
 <script src="tools.js"></script>
 <script src="ai.js"></script>
+<script src="voice.js"></script>
 <script src="video.js"></script>
 <script src="instagram.js"></script>
 <script src="app.js"></script>

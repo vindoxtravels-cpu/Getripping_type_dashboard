@@ -472,3 +472,23 @@ textarea{background:rgba(255,255,255,.05);border:1px solid var(--line);border-ra
   .rail-link{width:34px;height:34px;padding:4px}
   .main{padding-bottom:150px}
 }
+
+/* ---------- AI & voice dialog, voice-over panel ---------- */
+.apisec{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:16px;background:var(--glass);border:1px solid var(--line)}
+.apihead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.apihead b{font-size:15px}
+.apibox{display:flex;flex-direction:column;gap:12px}
+.state{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:14px;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);font-size:14px}
+.state>div{display:flex;flex-direction:column;gap:2px}.state span{color:var(--muted);font-size:13px}
+.state .i{flex:none;margin-top:2px;color:#c4b5fd}
+.state.ok{background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.3)}.state.ok .i{color:var(--green)}
+.state.off{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3)}.state.off .i{color:#fbbf24}
+.vrow{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;flex-wrap:wrap}
+.vrow small{margin-left:4px}
+.how p{margin-top:10px}
+.voform{display:grid;grid-template-columns:1fr 150px;gap:12px;margin-bottom:12px}
+.voform label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
+.voform select{width:100%}
+.vomore{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.voplay{width:100%;margin-top:12px;height:38px;border-radius:999px;color-scheme:dark}
+.ph .seg button{padding:5px 11px;font-size:13px}
+@media (max-width:600px){.voform{grid-template-columns:1fr}}

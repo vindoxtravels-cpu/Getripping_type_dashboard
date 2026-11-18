@@ -3,11 +3,13 @@
 A short-video workflow in six steps: **Discover → Scripts → Studio → Calendar → Insights → Remix**.
 It imports scripts from reel links, makes real animated video files in your browser, reads real numbers from one or many Instagram accounts, and learns which styles earn more.
 
-Static site: no build step and no dependencies. Serve the folder and open it:
+No build step. Start the **helper**, which serves the app and switches on Sign in with Claude and free Edge voices:
 
 ```bash
-python3 -m http.server 5174
+./bridge/start.sh
 ```
+
+then open **http://localhost:5174**. The first run installs the small `edge-tts` voice package if it is missing. (Python 3 is the only requirement.) You can still serve the folder with `python3 -m http.server 5174`, but Claude sign-in and Edge voices then stay off.
 
 Everything you create is stored in the browser (`localStorage`). On a phone, use *Add to Home Screen* to run it like an app.
 
@@ -51,20 +53,36 @@ Studio draws every frame itself and records it with the browser's `MediaRecorder
 - Output is **720×1280 (9:16) at 30 fps**: MP4 in Chrome, Edge and Safari, WebM where MP4 recording isn't available. Convert WebM for Instagram with
   `ffmpeg -i video.webm -c:v libx264 -pix_fmt yuv420p -c:a aac out.mp4`.
 - **Rendering runs in real time.** A 30-second reel takes about 30 seconds and the tab must stay open.
-- **Audio:** a synthesized beat (optional) and your own voice-over (MP3, WAV or M4A), which re-times the scenes to your voice.
-- **There is no text-to-speech.** Browsers can't capture their own speech engine. For an AI voice, use the webhook below.
+- **Audio:** a synthesized beat (optional) and a voice-over from any of three sources (see *Voice-over* below).
 - Rendered videos live in the tab. Download the file to keep it.
 
-## Claude API key (optional, unlocks the AI tools)
+## Connect Claude (optional, unlocks the AI tools)
 
-Click **Add Claude API key** in the sidebar. Your key is stored only in this browser (session only unless you tick *Remember*), and requests go straight from your browser to Anthropic. Create a key at console.anthropic.com, add a little credit, and **set a spend limit on the key**.
+Click **Connect Claude** in the sidebar. There are two ways:
 
-With a key, Studio can:
+- **Sign in (no API key).** The helper runs **your own Claude Code**, signed in to your Claude account, so usage comes from your Claude plan. The dialog shows whether the helper and Claude Code are found, and a **Sign in with Claude** button starts Claude Code's own sign-in (it opens your browser). Every request runs with all of Claude Code's tools switched off in an empty folder, so it can only answer text. This is meant for your own personal use on your own computer. It needs [Claude Code](https://claude.com/claude-code) installed (the Claude desktop app's built-in copy is found automatically).
+- **API key.** Paste a key from console.anthropic.com. It stays in this browser and requests go straight to Anthropic. Add a little credit and set a spend limit on the key.
+
+**Why not a "Sign in with Claude" button in the web page itself?** Anthropic provides account sign-in for Claude Code and its own apps, and asks other apps to use API keys. So the page never touches your sign-in token: the real Claude Code does the signing in, on your machine. For anything shared, hosted or commercial, use an API key.
+
+With Claude connected, Studio can:
 - **Import a reel** as a script written in your own words.
 - **Direct the video:** per-scene icons and highlighted words, plus the style, pace and effects.
 - **Make one like this:** study a high-performing reel and write a new script on your topic with the same structure and original wording.
 
-You choose the model (Sonnet, Haiku or Opus). Each call costs a small fraction of a cent to a few cents.
+## Voice-over
+
+Studio's **Voice-over** panel has three sources. Edge and ElevenLabs speak **each script line separately**, so every scene is exactly as long as its line and the captions stay in sync. I checked this in the recorded file: speech starts at each scene's start and is silent at its end.
+
+- **Edge voice (free).** Microsoft's neural read-aloud voices (318 voices, 140+ languages and regions) through the helper, using the open-source `edge-tts` package. Pick a voice and speed. These voices are **unofficial**: Microsoft publishes no public API for them, so they could change or stop working, and quality and limits are not guaranteed.
+- **ElevenLabs.** Add your ElevenLabs API key (Connect Claude dialog, *Voice* section), pick one of your account's voices and a model, and generate. It uses your plan's credits (about one per character). The key stays in this browser.
+- **Upload.** Your own recording (MP3, WAV or M4A); the scenes are scaled to its length.
+
+Every generated voice-over has a player and a WAV download.
+
+## The helper (`bridge/`)
+
+`./bridge/start.sh` runs `bridge/server.py`, a small program that stays on your computer. It serves the app and adds Claude through your Claude Code, Edge speech, and a status check for each. It is locked down: it listens on `127.0.0.1` only; it refuses requests whose Host or Origin isn't this app; it needs a random token that changes every time it starts; and it serves only the app's own files (not `bridge/`, `tests/`, `.git` or dotfiles). `python3 tests/helper_check.py` checks all of this with a stand-in for Claude Code, without touching your real account.
 
 ## Instagram: one or many accounts
 
@@ -121,8 +139,12 @@ A rule-based score out of 100, not a trained model. It starts at 100 and loses p
 - `app.js`: the six screens, dialogs and app logic
 - `video.js`: the video engine (scene planner, animated renderer, effects, recorder, beat synthesizer)
 - `instagram.js`: the Instagram client (multiple accounts)
-- `ai.js`: the Claude client
+- `ai.js`: the Claude client (sign-in through the helper, or an API key)
+- `voice.js`: voice-over generation (Edge, ElevenLabs), joining, WAV export
+- `helper.js`: how the page talks to the helper
+- `bridge/server.py`, `bridge/start.sh`: the helper
 - `tools.js`: pure logic with no page code: link parsing, script splitting, paste handling, hook analysis and the learning loop
 - `tests/tools.test.js`: unit tests for `tools.js`. Run `node tests/tools.test.js`
+- `tests/helper_check.py`: checks the helper's security and sign-in plumbing. Run `python3 tests/helper_check.py`
 
 Research on the reference landing page is on the [`rea-output` branch](../../tree/rea-output/2026-11-18-getripping-landing).

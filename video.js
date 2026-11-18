@@ -107,9 +107,12 @@ function plan(sc, o = {}) {
     return { type: b.type, text: b.text.trim(), ws, dur: Math.max(1.5, ws.length / wps + 0.5), motif, emph: new Set((d.emphasis || []).map((x) => wordKey(String(x)))) };
   });
   if (!scenes.length) { const t = sc.title || 'Your idea'; scenes = [{ type: 'hook', text: t, ws: words(t), dur: 2.5, motif: fx.motifs ? 'flame' : null, emph: new Set() }]; }
-  const base = scenes.reduce((a, s) => a + s.dur, 0);
-  const target = o.audioDuration ? Math.max(o.audioDuration, 1) : base * 1.04, k = target / base;
-  scenes.forEach((s) => { s.dur *= k; });
+  if (o.sceneDurations && o.sceneDurations.length === scenes.length) scenes.forEach((s, i) => { s.dur = Math.max(1, o.sceneDurations[i]); }); // timed to the real speech
+  else {
+    const base = scenes.reduce((a, s) => a + s.dur, 0);
+    const target = o.audioDuration ? Math.max(o.audioDuration, 1) : base * 1.04, k = target / base;
+    scenes.forEach((s) => { s.dur *= k; });
+  }
   const handle = o.handle || 'yourbrand';
   scenes.push({ type: 'outro', text: `Follow @${handle}`, ws: words(`Follow @${handle}`), dur: 1.5, motif: null, emph: new Set() });
   let t = 0, bodyN = 0;
@@ -425,8 +428,7 @@ async function record(p, o = {}) {
   if (wantAudio && AC) {
     ac = new AC(); if (ac.resume) await ac.resume(); dest = ac.createMediaStreamDestination();
     dest.stream.getAudioTracks().forEach((tr) => stream.addTrack(tr));
-    if (o.audioBuffer) { voice = ac.createBufferSource(); voice.buffer = o.audioBuffer; const g = ac.createGain(); g.gain.value = 1; voice.connect(g); g.connect(dest); voice.start(ac.currentTime + 0.05); }
-    if (o.music !== false) scheduleBeat(ac, dest, p.duration, o.audioBuffer ? 0.05 : 0.16, p.seed);
+    if (o.audioBuffer) { voice = ac.createBufferSource(); voice.buffer = o.audioBuffer; const g = ac.createGain(); g.gain.value = 1; voice.connect(g); g.connect(dest); }
   }
   const mime = pickMime();
   const rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 5e6 } : undefined);
@@ -448,6 +450,8 @@ async function record(p, o = {}) {
   };
   if (o.signal) o.signal.addEventListener('abort', () => { aborted = true; finish(); });
   rec.start(200);
+  if (voice) voice.start(); // same moment as the video clock
+  if (ac && dest && o.music !== false) scheduleBeat(ac, dest, p.duration, o.audioBuffer ? 0.05 : 0.16, p.seed);
   const loop = () => { step(); if (!finished) raf = requestAnimationFrame(loop); };
   loop();
   iv = setInterval(step, Math.floor(frameMs / 2)); // backup clock: keeps full frame rate when requestAnimationFrame is paused

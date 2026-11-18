@@ -1,7 +1,7 @@
 /* Reel Studio: discover → script → make → schedule → insights → remix. No build step. */
 (() => {
 'use strict';
-const RV = window.ReelVideo, IG = window.IG, AI = window.AI, Tools = window.Tools;
+const RV = window.ReelVideo, IG = window.IG, AI = window.AI, Tools = window.Tools, Voice = window.Voice, Helper = window.Helper;
 const THEMES = RV.THEMES, themeByName = RV.themeByName;
 
 /* ---------- icons ---------- */
@@ -102,7 +102,7 @@ const defaultState = () => ({
   v: 4, handle: 'yourbrand', niche: 'SaaS founders', stage: 0,
   saved: [], selectedSaved: null, skipped: [], history: [], customReels: [],
   scripts: [], activeId: null, posts: null, weekOffset: 0, selPost: null, statsPost: null,
-  settings: { webhook: '', auth: '' }, range: 30, igRange: 30, music: true, insightsAcct: '', learn: { arms: {}, log: [] },
+  settings: { webhook: '', auth: '' }, range: 30, igRange: 30, music: true, voiceTab: 'edge', insightsAcct: '', learn: { arms: {}, log: [] },
 });
 let S;
 try { S = Object.assign(defaultState(), JSON.parse(localStorage.getItem('gr_state') || '{}')); } catch (e) { S = defaultState(); }
@@ -234,7 +234,7 @@ function renderRailCards() {
   }
   const ai = $('#aiCard'), on = AI.configured();
   ai.className = 'igcard aicard' + (on ? ' on' : '');
-  ai.innerHTML = `<span class="av">${svg(on ? 'sparkles' : 'key', 17)}</span><span class="who"><b>${on ? 'Claude connected' : 'Add Claude API key'}</b><small>${on ? esc(AI.model()) : 'Unlocks the AI tools'}</small></span>`;
+  ai.innerHTML = `<span class="av">${svg(on ? 'sparkles' : 'key', 17)}</span><span class="who"><b>${on ? 'Claude connected' : 'Connect Claude'}</b><small>${on ? esc(AI.label()) : 'Sign in or add a key'}</small></span>`;
 }
 function renderChrome() {
   const st = STAGES[S.stage];
@@ -280,7 +280,7 @@ async function openImport(url, text) {
   const parsed = Tools.parseReelUrl(url);
   $('#impText').value = text || ''; $('#impRef').innerHTML = ''; impStatus('');
   $('#impRewrite').checked = AI.configured(); $('#impRewrite').disabled = !AI.configured();
-  $('#impHint').innerHTML = AI.configured() ? 'Claude rewrites it with original wording, so you are not copying someone else’s script.' : `Add a Claude API key to rewrite it in your own words. <button type="button" class="linkbtn inline" id="impKey">Add key</button>`;
+  $('#impHint').innerHTML = AI.configured() ? 'Claude rewrites it with original wording, so you are not copying someone else’s script.' : `Connect Claude to rewrite it in your own words. <button type="button" class="linkbtn inline" id="impKey">Connect</button>`;
   const k = $('#impKey'); if (k) k.onclick = () => { impd.close(); openApi(); };
   impState = { url: parsed ? parsed.url : '', ref: null };
   if (!impd.open) impd.showModal();
@@ -452,7 +452,7 @@ function viewScript() {
 
 /* ---------- 03 Studio (real video generation) ---------- */
 const PSTEPS = [['Script'], ['Voice'], ['Visuals'], ['Edit']];
-const planFor = (sc) => { const vo = VO.get(sc.id); return RV.plan(sc, { handle: handle(), wps: wps(sc), audioDuration: vo ? vo.duration : 0 }); };
+const planFor = (sc) => { const vo = VO.get(sc.id); return RV.plan(sc, { handle: handle(), wps: wps(sc), audioDuration: vo ? vo.duration : 0, sceneDurations: vo && vo.sceneDurations }); };
 const onProd = (sc) => onStage('production') && S.activeId === sc.id && $('#steps');
 function plog(sc, m) { sc.prod.log.push(new Date().toLocaleTimeString() + '  ' + m); sc.prod.log = sc.prod.log.slice(-30); if (onProd(sc)) { const l = $('#log'); l.innerHTML = sc.prod.log.map(esc).join('<br>'); l.scrollTop = 1e9; } }
 function paint(sc, eta) {
@@ -490,19 +490,15 @@ function viewProduction() {
         <div class="switches">${sw('motifs', 'Scene icons')}${sw('glow', 'Glow')}${sw('chroma', 'Color fringe')}${sw('grain', 'Film grain')}</div>
       </section>
       <section class="panel director">
-        <div class="ph"><h3>${svg('wand', 17)} AI director</h3>${ai ? `<button type="button" class="btn primary" id="direct" ${dis}>${svg('sparkles', 16)} Direct with Claude</button>` : `<button type="button" class="btn" id="direct">${svg('key', 16)} Add Claude API key</button>`}</div>
-        <p class="muted">${ai ? 'Claude reads your script and picks an icon and highlighted words for every scene, plus the style, pace and effects.' : 'Without a key, Studio still picks icons from keywords. Add your Claude API key and it directs every scene for you, imports scripts from reels and writes new ones from your best performers.'}</p>
+        <div class="ph"><h3>${svg('wand', 17)} AI director</h3>${ai ? `<button type="button" class="btn primary" id="direct" ${dis}>${svg('sparkles', 16)} Direct with Claude</button>` : `<button type="button" class="btn" id="direct">${svg('key', 16)} Connect Claude</button>`}</div>
+        <p class="muted">${ai ? 'Claude reads your script and picks an icon and highlighted words for every scene, plus the style, pace and effects.' : 'Without Claude connected, Studio still picks icons from keywords. Connect Claude (sign in with your account, or add an API key) and it directs every scene, imports scripts from reels and writes new ones from your best performers.'}</p>
         ${sc.dir.some((d) => d && (d.motif || (d.emphasis && d.emphasis.length))) ? `<p class="small okline">${svg('check', 14)} Directed by Claude: ${sc.dir.filter((d) => d && d.motif && d.motif !== 'none').length} icons, ${sc.dir.reduce((n, d) => n + ((d && d.emphasis && d.emphasis.length) || 0), 0)} highlighted words.</p>` : ''}
       </section>
-      <section class="panel">
-        <div class="ph"><h3>Voice-over</h3></div>
-        ${vo ? `<div class="vo"><span class="vo-ic">${svg('mic', 18)}</span><div><b>${esc(vo.name)}</b><small>${mmss(vo.duration)} · scenes are timed to it</small></div><button type="button" class="btn ghost sm" id="voClear" ${dis}>Remove</button></div>`
-          : `<p class="muted">Add a recording of you reading the script (MP3, WAV or M4A). The scenes will be timed to your voice.</p><label class="btn upload"><input type="file" id="vo" accept="audio/*" hidden ${dis}>${svg('mic', 16)} Upload voice-over</label>`}
-      </section>
+      ${voicePanel(sc, vo, dis)}
       <section class="panel">
         <div class="ph"><h3>Render</h3><div class="row"><button class="btn" id="cfg" type="button">${svg('link', 15)} Webhook${S.settings.webhook ? ' ✓' : ''}</button>
           ${running ? '<button class="btn danger" id="cancel" type="button">Cancel</button>' : `<button class="btn primary" id="run" type="button" ${canRec || S.settings.webhook ? '' : 'disabled'}>${svg('film2', 16)} ${v ? 'Render again' : 'Render video'}</button>`}</div></div>
-        ${ai ? '' : `<div class="nudge">${svg('key', 16)}<span>Tip: add your <b>Claude API key</b> to direct scenes, import scripts and make videos like your best reels.</span><button type="button" class="btn sm" id="nudgeKey">Add key</button></div>`}
+        ${ai ? '' : `<div class="nudge">${svg('key', 16)}<span>Tip: <b>connect Claude</b> (sign in, no API key needed) to direct scenes, import scripts and make videos like your best reels.</span><button type="button" class="btn sm" id="nudgeKey">Connect</button></div>`}
         <div id="steps">${PSTEPS.map((s, i) => `<div class="step"><span class="dotx"></span><b>${s[0]}</b><span class="d">${i === 0 ? 'Locked, word for word' : i === 1 ? (vo ? 'Your voice-over' : S.music ? 'Synthesized beat' : 'No audio') : i === 2 ? `${p.scenes.length} scenes, ${esc(sc.style.theme)}` : `${cap(fx.caption)} captions, ${fx.transition} cuts`}</span></div>`).join('')}</div>
         <div class="renderbox"><div class="top"><span id="rs"></span><b id="rp">${P.render}%</b></div><div class="meter"><i id="rm" style="width:${P.render}%"></i></div></div>
         ${canRec || S.settings.webhook ? '' : '<p class="warn">This browser cannot record video. Use Chrome, Edge, Firefox or Safari 14.1+, or set a webhook.</p>'}
@@ -538,20 +534,71 @@ function viewProduction() {
     } catch (err) { busy(btn, false); toast(err.message); }
   };
   const nk = $('#nudgeKey'); if (nk) nk.onclick = openApi;
-  const vi = $('#vo'); if (vi) vi.onchange = async (e) => {
-    const f = e.target.files[0]; if (!f) return;
-    try {
-      const AC = window.AudioContext || window.webkitAudioContext, ac = new AC(), buf = await ac.decodeAudioData(await f.arrayBuffer()); if (ac.close) ac.close();
-      VO.set(sc.id, { buffer: buf, name: f.name, duration: buf.duration }); invalidate(sc); toast('Voice-over loaded · ' + mmss(buf.duration)); viewProduction();
-    } catch (err) { toast('Could not read that audio file'); }
-  };
-  const vc = $('#voClear'); if (vc) vc.onclick = () => { VO.delete(sc.id); invalidate(sc); viewProduction(); };
+  bindVoicePanel(sc);
   $('#cfg').onclick = openSettings;
   const run = $('#run'); if (run) run.onclick = () => runPipeline(sc);
   const cn = $('#cancel'); if (cn) cn.onclick = () => { const r = RT.get(sc.id); if (r && r.abort) r.abort.abort(); };
   const sh = $('#sched'); if (sh) sh.onclick = () => openSchedule(sc.id, null);
   paint(sc);
 }
+/* ---------- voice-over (Edge voices, ElevenLabs or your own recording) ---------- */
+function dropVoice(id) { const v = VO.get(id); if (v && v.wavUrl) URL.revokeObjectURL(v.wavUrl); VO.delete(id); }
+function voiceCard(sc, vo, dis) {
+  return `<div class="vo"><span class="vo-ic">${svg('mic', 18)}</span><div><b>${esc(vo.name)}</b><small>${mmss(vo.duration)} · ${vo.sceneDurations ? 'each scene is timed to its line' : 'scenes are timed to it'}</small></div>${vo.wavUrl ? `<a class="btn ghost sm" href="${esc(vo.wavUrl)}" download="${slug(sc.title)}-voice.wav" title="Download the voice-over" aria-label="Download the voice-over">${svg('download', 14)}</a>` : ''}<button type="button" class="btn ghost sm" id="voClear" ${dis}>Remove</button></div>${vo.wavUrl ? `<audio class="voplay" controls src="${esc(vo.wavUrl)}"></audio>` : ''}`;
+}
+function voicePanel(sc, vo, dis) {
+  const tab = S.voiceTab || 'edge', P = Voice.prefs;
+  const tabs = `<div class="seg" id="voTabs">${[['edge', 'Edge voice'], ['eleven', 'ElevenLabs'], ['upload', 'Upload']].map(([k, l]) => `<button type="button" data-vt="${k}" class="${tab === k ? 'on' : ''}" ${dis}>${l}</button>`).join('')}</div>`;
+  let body;
+  if (tab === 'edge') body = `<div class="voform"><label>Voice<select id="edVoice" ${dis}><option>Loading voices…</option></select></label><label>Speed<select id="edRate" ${dis}>${[['-15%', 'Slower'], ['+0%', 'Normal'], ['+15%', 'Faster'], ['+30%', 'Much faster']].map(([v, l]) => `<option value="${v}" ${v === P.rate ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+    <button type="button" class="btn primary wide" id="edGo" ${dis}>${svg('mic', 16)} ${vo ? 'Generate again' : 'Generate'} with Edge voice</button><p class="muted small" id="edNote">Free. Each line is spoken separately, so every scene is timed to its speech.</p>`;
+  else if (tab === 'eleven') body = Voice.eleven.configured()
+    ? `<div class="voform"><label>Voice<select id="elVoice" ${dis}><option>Loading your voices…</option></select></label><label>Model<select id="elModel" ${dis}>${Voice.EL_MODELS.map(([v, l]) => `<option value="${v}" ${v === P.model ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+      <button type="button" class="btn primary wide" id="elGo" ${dis}>${svg('mic', 16)} ${vo ? 'Generate again' : 'Generate'} with ElevenLabs</button><p class="muted small" id="elNote">Uses your ElevenLabs credits (about one per character).</p>`
+    : `<p class="muted">Add your ElevenLabs API key to generate voice-overs with your own voices.</p><button type="button" class="btn" id="elAdd">${svg('key', 16)} Add ElevenLabs key</button>`;
+  else body = `<p class="muted">Add a recording of you reading the script (MP3, WAV or M4A). The scenes will be timed to your voice.</p><label class="btn upload"><input type="file" id="vo" accept="audio/*" hidden ${dis}>${svg('mic', 16)} Upload voice-over</label>`;
+  return `<section class="panel"><div class="ph"><h3>Voice-over</h3>${tabs}</div>${vo ? voiceCard(sc, vo, dis) : ''}<div class="${vo ? 'vomore' : ''}">${body}</div></section>`;
+}
+function fillEdgeVoices(sel, list) {
+  const dn = new Intl.DisplayNames(['en'], { type: 'language' }), groups = {};
+  list.forEach((v) => (groups[v.locale] = groups[v.locale] || []).push(v));
+  const label = (loc) => { try { return dn.of(loc) || loc; } catch (e) { return loc; } };
+  const locs = Object.keys(groups).sort((a, b) => (b.startsWith('en-') - a.startsWith('en-')) || label(a).localeCompare(label(b)));
+  sel.innerHTML = locs.map((loc) => `<optgroup label="${esc(label(loc))}">${groups[loc].map((v) => `<option value="${esc(v.id)}">${esc(v.id.split('-').slice(2).join('-').replace(/Neural$/, ''))} (${esc(v.gender[0])})</option>`).join('')}</optgroup>`).join('');
+  sel.value = Voice.prefs.voice; if (!sel.value) sel.selectedIndex = 0;
+}
+async function makeVoice(sc, provider, btn) {
+  const items = sc.blocks.filter((b) => b.text.trim()); if (!items.length) { toast('Write the script first.'); return; }
+  const opt = provider === 'eleven' ? { provider, voiceId: $('#elVoice').value, model: $('#elModel').value } : { provider: 'edge', voice: $('#edVoice').value, rate: $('#edRate').value };
+  if (provider === 'eleven' && !opt.voiceId) { toast('Pick a voice first.'); return; }
+  Voice.save(provider === 'eleven' ? { provider, voiceId: opt.voiceId, model: opt.model } : { provider: 'edge', voice: opt.voice, rate: opt.rate });
+  busy(btn, true, `Speaking 1/${items.length}…`);
+  try {
+    const r = await Voice.generate(items, opt, (i, n) => { btn.innerHTML = `<span class="spin"></span> Speaking ${i + 1}/${n}…`; });
+    dropVoice(sc.id); VO.set(sc.id, { buffer: r.buffer, name: r.name, duration: r.duration, sceneDurations: r.sceneDurations, source: provider, wavUrl: URL.createObjectURL(Voice.toWav(r.buffer)) });
+    invalidate(sc); toast('Voice-over ready · ' + mmss(r.duration)); viewProduction();
+  } catch (err) { busy(btn, false); toast(err.message); }
+}
+function bindVoicePanel(sc) {
+  $$('#voTabs [data-vt]').forEach((b) => b.onclick = () => { S.voiceTab = b.dataset.vt; save(); viewProduction(); });
+  const vc = $('#voClear'); if (vc) vc.onclick = () => { dropVoice(sc.id); invalidate(sc); viewProduction(); };
+  const vi = $('#vo'); if (vi) vi.onchange = async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    try { const buf = await Voice.decode(await f.arrayBuffer()); dropVoice(sc.id); VO.set(sc.id, { buffer: buf, name: f.name, duration: buf.duration, source: 'upload', wavUrl: URL.createObjectURL(Voice.toWav(buf)) }); invalidate(sc); toast('Voice-over loaded · ' + mmss(buf.duration)); viewProduction(); }
+    catch (err) { toast('Could not read that audio file'); }
+  };
+  const ea = $('#elAdd'); if (ea) ea.onclick = openApi;
+  const ev = $('#edVoice'); if (ev) {
+    Voice.edge.voices().then((list) => { const s = $('#edVoice'); if (s) fillEdgeVoices(s, list); }).catch((err) => { const p = $('#edVoice') && $('#edVoice').closest('.vomore, .panel'); const f = $('.voform'), g = $('#edGo'); if (f) f.remove(); if (g) g.remove(); const n = $('#edNote'); if (n) { n.className = 'warn'; n.textContent = err.message; } });
+    $('#edGo').onclick = (e) => makeVoice(sc, 'edge', e.currentTarget);
+  }
+  const lv = $('#elVoice'); if (lv) {
+    Voice.eleven.voices().then((list) => { const s = $('#elVoice'); if (!s) return; if (!list.length) { $('#elNote').textContent = 'No voices found on this ElevenLabs account.'; return; } s.innerHTML = list.map((v) => `<option value="${esc(v.id)}">${esc(v.name)}${v.category && v.category !== 'premade' ? ' · ' + esc(v.category) : ''}</option>`).join(''); s.value = Voice.prefs.voiceId; if (!s.value) s.selectedIndex = 0; })
+      .catch((err) => { const n = $('#elNote'); if (n) { n.className = 'warn'; n.textContent = err.message; } });
+    $('#elGo').onclick = (e) => makeVoice(sc, 'eleven', e.currentTarget);
+  }
+}
+
 function buildPayload(sc) {
   const th = themeByName(sc.style.theme);
   return { handle: handle(), title: sc.title, duration: mmss(seconds(sc)), script: sc.blocks, text: sc.blocks.map((b) => b.text).join('\n'), wordCount: scriptWords(sc).length, format: '9:16',
@@ -879,8 +926,8 @@ function openGen(reel, live) {
   if (live) { const med = Tools.median(liveReels().map(Tools.engagement)), e = Tools.engagement(reel); if (med && e) why.push(`${(e / med).toFixed(1)}× your median engagement`); }
   $('#genRef').innerHTML = `${reel.thumb ? `<img src="${esc(reel.thumb)}" alt="" referrerpolicy="no-referrer">` : `<div class="noimg" style="background:linear-gradient(160deg,${reel.g ? reel.g[0] : '#312e81'},${reel.g ? reel.g[1] : '#0b0b1a'})">${svg('film2', 26)}</div>`}<div class="refmeta"><b>${esc(reel.title)}</b><span class="muted small">${fmt(reel.views)} views${live ? '' : ' · sample reel'}</span></div>`;
   $('#genWhy').innerHTML = why.length ? why.map((w) => `<span class="chip blue">${esc(w)}</span>`).join('') : '<span class="muted small">Claude will study its structure.</span>';
-  $('#genTopic').value = ''; genMsg(AI.configured() ? '' : 'Add your Claude API key to generate. Or copy its structure and rewrite it yourself.');
-  $('#genGo').innerHTML = AI.configured() ? `${svg('sparkles', 16)} Generate with Claude` : `${svg('key', 16)} Add Claude API key`;
+  $('#genTopic').value = ''; genMsg(AI.configured() ? '' : 'Connect Claude to generate. Or copy its structure and rewrite it yourself.');
+  $('#genGo').innerHTML = AI.configured() ? `${svg('sparkles', 16)} Generate with Claude` : `${svg('key', 16)} Connect Claude`;
   gend.showModal();
 }
 function startFromParts(parts, source, ref) {
@@ -973,29 +1020,82 @@ dlg.addEventListener('close', () => {
 $('#openSettings').onclick = openSettings;
 $('#resetAll').onclick = () => { if (confirm('Clear all scripts, posts, learning and settings on this device?')) { localStorage.removeItem('gr_state'); location.reload(); } };
 
-/* Claude API key */
-const apid = $('#apiDialog');
-function apiMsg(t, kind) { const m = $('#apiMsg'); m.textContent = t; m.className = 'note ' + (kind || ''); }
+/* AI & voice: Claude sign-in or API key, Edge voices, ElevenLabs */
+const apid = $('#apiDialog'); let loginPoll = null;
+const noteTo = (sel, text, kind) => { const m = $(sel); m.textContent = text; m.className = 'note ' + (kind || ''); };
+const apiMsg = (t, k) => noteTo('#apiMsg', t, k), elMsg = (t, k) => noteTo('#elMsg', t, k);
+function applyAiChange() { renderRailCards(); if (onStage('production') || onStage('feed') || onStage('script') || onStage('analytics')) render(); }
+function renderAiTabs() {
+  const m = AI.mode();
+  $$('#aiTabs [data-mode]').forEach((b) => b.classList.toggle('on', b.dataset.mode === m));
+  $('#aiSignin').hidden = m !== 'signin'; $('#aiKeyBox').hidden = m !== 'key';
+  $('#apiRemove').hidden = !AI.configured() || m !== 'key';
+}
+function renderSignin() {
+  const st = AI.status(), c = st.claude, box = $('#aiSignin'); let html;
+  if (!st.helper) html = `<div class="state off">${svg('link', 16)}<div><b>The helper isn’t running</b><span>In the project folder run <code>./bridge/start.sh</code>, then open the app from <code>http://localhost:5174</code>.</span></div></div>`;
+  else if (!c || !c.installed) html = `<div class="state off">${svg('x', 16)}<div><b>Claude Code isn’t installed</b><span>Install it from claude.com/claude-code, then reload this page.</span></div></div>`;
+  else if (!c.loggedIn) html = `<div class="state">${svg('key', 16)}<div><b>Claude Code is ready</b><span>Sign in with your Claude account to use your plan. No API key needed.</span></div></div><button type="button" class="btn primary wide" id="aiSignBtn">${svg('sparkles', 16)} Sign in with Claude</button>`;
+  else html = `<div class="state ok">${svg('check', 16)}<div><b>Signed in${c.email ? ' as ' + esc(c.email) : ''}</b><span>Uses your Claude plan through Claude Code on this computer.</span></div></div>
+    <label>Model<select id="aiAlias">${AI.ALIASES.map(([v, l]) => `<option value="${v}" ${v === AI.alias() ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <div class="row end"><button type="button" class="btn primary" id="aiSignTest">Test</button></div>`;
+  box.innerHTML = html;
+  const sb = $('#aiSignBtn'); if (sb) sb.onclick = () => startSignIn(sb);
+  const al = $('#aiAlias'); if (al) al.onchange = (e) => { AI.setAlias(e.target.value); renderRailCards(); };
+  const tb = $('#aiSignTest'); if (tb) tb.onclick = async () => { busy(tb, true, 'Asking Claude…'); apiMsg('Asking Claude to say OK…'); try { await AI.test(); apiMsg('Connected. Claude answered.', 'ok'); } catch (err) { apiMsg(err.message, 'bad'); } finally { busy(tb, false); } };
+}
+async function startSignIn(btn) {
+  busy(btn, true, 'Opening sign-in…'); apiMsg('');
+  try {
+    const r = await AI.signIn();
+    apiMsg(r.url ? 'Finish signing in in your browser. If it did not open, use the link below.' : 'Finish signing in in the browser window that opened.');
+    if (r.url) $('#aiSignin').insertAdjacentHTML('beforeend', `<p class="small"><a href="${esc(r.url)}" target="_blank" rel="noopener">Open the sign-in page ↗</a></p>`);
+    pollLogin();
+  } catch (err) { apiMsg(err.message, 'bad'); } finally { busy(btn, false); }
+}
+function pollLogin() {
+  clearInterval(loginPoll); let n = 0;
+  loginPoll = setInterval(async () => {
+    n++; const st = await AI.refresh();
+    if (st.claude && st.claude.loggedIn) { clearInterval(loginPoll); apiMsg('Signed in. Claude is ready.', 'ok'); renderSignin(); renderAiTabs(); applyAiChange(); }
+    else if (n > 72) { clearInterval(loginPoll); apiMsg('Sign-in did not finish. Try again.', 'bad'); }
+  }, 2500);
+}
+async function renderVoiceState() {
+  const h = await Helper.session(), ec = $('#edgeState'), el = $('#elState');
+  ec.className = 'chip ' + (h.available && h.edge ? 'good' : ''); ec.textContent = h.available ? (h.edge ? 'Ready' : 'Needs edge-tts') : 'Needs the helper';
+  const on = Voice.eleven.configured(); el.className = 'chip ' + (on ? 'good' : ''); el.textContent = on ? 'Key saved' : 'No key';
+  $('#elRemove').hidden = !on; $('#elRemember').checked = Voice.eleven.remembered(); $('#elKey').placeholder = on ? 'Key saved. Paste a new one to replace it.' : 'Paste your ElevenLabs key';
+}
 function openApi() {
   [dlg, igd, impd, gend].forEach((d) => { if (d.open) d.close(); });
   $('#apiModel').innerHTML = AI.MODELS.map(([id, label]) => `<option value="${id}" ${id === AI.model() ? 'selected' : ''}>${label}</option>`).join('');
-  $('#apiKey').value = ''; $('#apiKey').placeholder = AI.configured() ? 'Key saved. Paste a new one to replace it.' : 'sk-ant-…';
-  $('#apiRemember').checked = AI.remembered(); $('#apiRemove').hidden = !AI.configured();
-  apiMsg(AI.configured() ? 'Claude is connected.' : '', AI.configured() ? 'ok' : ''); apid.showModal();
+  $('#apiKey').value = ''; $('#apiKey').placeholder = AI.status().hasKey ? 'Key saved. Paste a new one to replace it.' : 'sk-ant-…'; $('#apiRemember').checked = AI.remembered(); $('#elKey').value = '';
+  apiMsg(''); elMsg(''); renderAiTabs(); renderSignin(); renderVoiceState(); apid.showModal();
+  AI.refresh().then(() => { renderSignin(); renderAiTabs(); renderRailCards(); });
 }
 $('#aiCard').onclick = openApi;
+$$('#aiTabs [data-mode]').forEach((b) => b.onclick = () => { AI.setMode(b.dataset.mode); renderAiTabs(); apiMsg(''); renderRailCards(); });
 $('#apiTest').onclick = async (e) => {
-  const key = $('#apiKey').value.trim(), model = $('#apiModel').value, remember = $('#apiRemember').checked, had = AI.configured(), oldModel = AI.model(), oldRem = AI.remembered();
+  const key = $('#apiKey').value.trim(), model = $('#apiModel').value, remember = $('#apiRemember').checked, had = AI.status().hasKey;
   if (!key && !had) { apiMsg('Paste your API key first.', 'bad'); return; }
   const btn = e.currentTarget; busy(btn, true, 'Testing…'); apiMsg('Asking Claude to say OK…');
-  const snapshot = had ? { model: oldModel, rem: oldRem } : null;
   try {
     if (key) AI.setKey(key, model, remember); else AI.setOptions(model, remember);
-    await AI.test(); apiMsg('Connected. Claude answered.', 'ok'); $('#apiKey').value = ''; $('#apiRemove').hidden = false; renderRailCards();
-    if (onStage('production') || onStage('feed') || onStage('analytics')) render();
-  } catch (err) { if (!snapshot && key) AI.clear(); apiMsg(err.message, 'bad'); } finally { busy(btn, false); }
+    await AI.test(); apiMsg('Connected. Claude answered.', 'ok'); $('#apiKey').value = ''; renderAiTabs(); applyAiChange();
+  } catch (err) { if (!had && key) AI.clear(); apiMsg(err.message, 'bad'); } finally { busy(btn, false); }
 };
-$('#apiRemove').onclick = () => { AI.clear(); apiMsg('Key removed from this browser.'); $('#apiRemove').hidden = true; renderRailCards(); if (onStage('production')) viewProduction(); };
+$('#apiRemove').onclick = () => { AI.clear(); apiMsg('Key removed from this browser.'); renderAiTabs(); applyAiChange(); };
+$('#elTest').onclick = async (e) => {
+  const key = $('#elKey').value.trim(), had = Voice.eleven.configured(), remember = $('#elRemember').checked;
+  if (!key && !had) { elMsg('Paste your ElevenLabs key first.', 'bad'); return; }
+  const btn = e.currentTarget; busy(btn, true, 'Testing…'); elMsg('Checking with ElevenLabs…');
+  try {
+    if (key) Voice.eleven.setKey(key, remember); else Voice.eleven.setRemember(remember);
+    const list = await Voice.eleven.test(); elMsg(`Connected. ${list.length} voice${list.length === 1 ? '' : 's'} available.`, 'ok'); $('#elKey').value = ''; renderVoiceState(); if (onStage('production')) viewProduction();
+  } catch (err) { if (!had && key) Voice.eleven.clear(); elMsg(err.message, 'bad'); renderVoiceState(); } finally { busy(btn, false); }
+};
+$('#elRemove').onclick = () => { Voice.eleven.clear(); elMsg('Key removed from this browser.'); renderVoiceState(); if (onStage('production')) viewProduction(); };
 
 /* Instagram accounts */
 const igd = $('#igDialog');
@@ -1036,5 +1136,6 @@ S.scripts.forEach((sc) => { if (sc.prod.status === 'running') sc.prod = defaultP
 buildNav();
 { const v = $('#view'); v.classList.add('enter'); setTimeout(() => v.classList.remove('enter'), 1200); }
 render();
+AI.refresh().then(() => { renderRailCards(); if (AI.configured() && onStage('production')) render(); });
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(moveGlider);
 })();

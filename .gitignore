@@ -1,2 +1,6 @@
 node_modules
 .DS_Store
+
+# local helper environment
+bridge/.venv/
+bridge/__pycache__/

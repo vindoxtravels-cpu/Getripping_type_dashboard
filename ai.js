@@ -1,24 +1,31 @@
-/* Claude API client. Your key stays in this browser and requests go straight to Anthropic.
+/* Claude client. Two ways to connect, no matter which you pick the tools behave the same:
+ *   • Sign in: the local helper runs YOUR signed-in Claude Code (your Claude plan, no API key).
+ *   • API key: your key goes straight from this browser to Anthropic.
  * Powers: script import, scene direction and "make one like this".
  */
 (() => {
 'use strict';
-const KEY = 'rs_ai', URL = 'https://api.anthropic.com/v1/messages';
+const KEY = 'rs_ai', PREF = 'rs_ai_pref', URL = 'https://api.anthropic.com/v1/messages';
 const MODELS = [['claude-sonnet-5-5', 'Sonnet 5.5: balanced (recommended)'], ['claude-haiku-5-5', 'Haiku 5.5: fastest and cheapest'], ['claude-opus-5-5', 'Opus 5.5: best quality, costs more']];
+const ALIASES = [['sonnet', 'Sonnet: balanced (recommended)'], ['haiku', 'Haiku: fastest'], ['opus', 'Opus: best quality, uses more of your plan']];
 const MOTIFS = ['chart', 'coin', 'flame', 'bolt', 'target', 'clock', 'heart', 'check'];
-const state = { key: '', model: MODELS[0][0], remembered: false };
+const state = { mode: 'signin', key: '', model: MODELS[0][0], alias: 'sonnet', remembered: false, ready: false, claude: null };
 
 class AIError extends Error { constructor(m, info) { super(m); this.name = 'AIError'; Object.assign(this, info || {}); } }
 
-function load() {
+(function load() {
+  try { const p = JSON.parse(localStorage.getItem(PREF) || '{}'); if (p.mode) state.mode = p.mode; if (p.model) state.model = p.model; if (p.alias) state.alias = p.alias; } catch (e) { /* storage blocked */ }
   for (const store of [sessionStorage, localStorage]) {
-    try { const s = store.getItem(KEY); if (s) { const j = JSON.parse(s); state.key = j.key || ''; state.model = j.model || state.model; state.remembered = store === localStorage; return; } } catch (e) { /* storage blocked */ }
+    try { const s = store.getItem(KEY); if (s) { state.key = JSON.parse(s).key || ''; state.remembered = store === localStorage; return; } } catch (e) { /* storage blocked */ }
   }
-}
+})();
 function persist() {
-  try { sessionStorage.removeItem(KEY); localStorage.removeItem(KEY); if (state.key) (state.remembered ? localStorage : sessionStorage).setItem(KEY, JSON.stringify({ key: state.key, model: state.model })); } catch (e) { /* storage blocked */ }
+  try {
+    localStorage.setItem(PREF, JSON.stringify({ mode: state.mode, model: state.model, alias: state.alias }));
+    sessionStorage.removeItem(KEY); localStorage.removeItem(KEY);
+    if (state.key) (state.remembered ? localStorage : sessionStorage).setItem(KEY, JSON.stringify({ key: state.key }));
+  } catch (e) { /* storage blocked */ }
 }
-load();
 
 function friendly(status, msg) {
   if (status === 401) return 'Claude rejected the API key. Check that you copied it fully (it starts with sk-ant-).';
@@ -34,8 +41,28 @@ function extractJson(text) {
   if (a < 0 || b < a) throw new AIError('Claude replied in an unexpected format. Try again.');
   try { return JSON.parse(text.slice(a, b + 1)); } catch (e) { throw new AIError('Claude replied in an unexpected format. Try again.'); }
 }
-async function ask({ system, user, max = 1500, json = false }) {
-  if (!state.key) throw new AIError('Add your Claude API key first.', { nokey: true });
+
+/* ---------- connection state ---------- */
+async function refresh() {
+  const s = await Helper.session(true);
+  if (!s.available) { state.claude = null; state.ready = false; return status(); }
+  try { const c = await Helper.call('/api/claude/status'); state.claude = c; state.ready = !!(c.installed && c.loggedIn); }
+  catch (e) { state.claude = null; state.ready = false; }
+  return status();
+}
+function status() {
+  const h = Helper.info();
+  return { mode: state.mode, ready: configured(), helper: !!(h && h.available), claude: state.claude, hasKey: !!state.key, alias: state.alias, model: state.model };
+}
+const configured = () => state.mode === 'signin' ? state.ready : !!state.key;
+const label = () => state.mode === 'signin' ? (state.claude && state.claude.email ? 'Signed in · ' + state.alias : 'Signed in with Claude') : state.model;
+
+/* ---------- one request ---------- */
+async function viaHelper(system, user) {
+  try { return (await Helper.call('/api/claude/ask', { method: 'POST', body: { system, user, model: state.alias } })).text; }
+  catch (e) { throw new AIError(e.message, { offline: e.offline, status: e.status }); }
+}
+async function viaKey(system, user, max) {
   let res;
   try {
     res = await fetch(URL, { method: 'POST',
@@ -44,7 +71,13 @@ async function ask({ system, user, max = 1500, json = false }) {
   } catch (e) { throw new AIError('Could not reach Claude. Check your connection.', { network: true }); }
   let j; try { j = await res.json(); } catch (e) { throw new AIError('Unexpected reply from Claude (HTTP ' + res.status + ').'); }
   if (!res.ok || j.type === 'error') throw new AIError(friendly(res.status, j.error && j.error.message), { status: res.status });
-  const text = (j.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
+  return (j.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
+}
+async function ask({ system, user, max = 1500, json = false }) {
+  if (state.mode === 'signin') {
+    if (!state.ready) { await refresh(); if (!state.ready) throw new AIError('Sign in with Claude first.', { nokey: true }); }
+  } else if (!state.key) throw new AIError('Add your Claude API key first.', { nokey: true });
+  const text = state.mode === 'signin' ? await viaHelper(system, user) : await viaKey(system, user, max);
   return json ? extractJson(text) : text;
 }
 
@@ -95,11 +128,15 @@ Return {"title":"...","hook":"...","body":["..."],"comment":"...","rationale":"o
 async function test() { const t = await ask({ system: 'Reply with the single word OK.', user: 'ping', max: 10 }); return /ok/i.test(t); }
 
 window.AI = {
-  MODELS, MOTIFS, AIError,
-  configured: () => !!state.key, model: () => state.model, remembered: () => state.remembered,
+  MODELS, ALIASES, MOTIFS, AIError,
+  configured, label, status, refresh,
+  mode: () => state.mode, setMode(m) { state.mode = m === 'key' ? 'key' : 'signin'; persist(); },
+  alias: () => state.alias, setAlias(a) { state.alias = a; persist(); },
+  model: () => state.model, remembered: () => state.remembered,
   setKey(key, model, remember) { state.key = String(key || '').trim(); state.model = model || state.model; state.remembered = !!remember; persist(); },
   setOptions(model, remember) { state.model = model || state.model; state.remembered = !!remember; persist(); },
   clear() { state.key = ''; state.remembered = false; persist(); },
+  signIn: () => Helper.call('/api/claude/login', { method: 'POST', body: {} }),
   ask, scriptFromText, direct, fromReference, test,
 };
 })();
