@@ -24,17 +24,20 @@ Everything you create is stored in the browser (`localStorage`). On a phone, use
 | **Insights** | Live numbers from one or many Instagram accounts, compared with the previous period, plus carousels and what your best hooks have in common. |
 | **Remix** | The best posted video becomes a carousel (PNG export, 1080×1350) and a batch of new hooks. |
 
-## Import a script from a reel link
+## Import a script from a reel (Claude watches it)
 
-Paste an Instagram reel link in **Discover** (or into any script line). Studio then:
+Paste an Instagram reel link in **Discover** (or into any script line), or open **Import from reel link** in Scripts. With Claude connected and the helper running, Studio:
 
-1. Looks for the reel in your connected accounts. If it is yours, it loads the caption and thumbnail.
-2. Otherwise tries Instagram's embed API (Meta only allows this for some apps).
-3. If neither works, asks you to paste the caption or what the reel says.
+1. **Finds the reel in your connected accounts.** If it is yours, it downloads the video straight from Instagram's servers (the helper only ever downloads from Instagram's own video addresses) and starts straight away.
+2. **Cuts it into frames** with `ffmpeg`: one at every scene change plus evenly spaced ones, up to 30. You see them appear in a strip.
+3. **Listens**, if you installed speech-to-text: the helper transcribes the audio on your computer (`./bridge/start.sh --speech`, one time, about 190 MB plus a 145 MB speech model).
+4. **Claude looks at every frame** together with the speech and caption, copies the on-screen text, describes each frame, writes the script (hook, lines, comment call-to-action) and picks a matching style.
 
-The text is then split into a **hook** (first sentence), **lines** (one idea each, long sentences broken up) and a **comment call-to-action**. With a Claude key, tick *Rewrite in my own words* so you are not copying someone else's script.
+The result is a new script with a collapsible **Reel breakdown**: each frame's time, what it shows, and its on-screen text. Tick *Rewrite in my own words* for a new script with original wording (the default), or untick it to reconstruct what the video actually says. I tested this on a 14-second reel rendered by Studio itself: faithful mode reproduced all four lines exactly and picked the style it had been made in.
 
-**Instagram does not give apps the video or audio of other people's reels**, and Studio does not transcribe video. For someone else's reel, paste what they say.
+**Other people's reels.** Instagram does not let apps download other people's reels, and Studio does not scrape them. For those you can **drop the video file** into the importer yourself (a video you own, one you have permission to use, or a screen recording) and the same frame-by-frame analysis runs. Without a video, paste the caption or what they say and it is split into a hook, lines and a call-to-action (or rewritten by Claude).
+
+Needs: `ffmpeg` (`brew install ffmpeg`), the helper, and Claude connected. Videos up to 10 minutes and 300 MB. Everything stays on your computer except the cut frames, caption and transcript, which go to Claude.
 
 Pasting several sentences into a script line spreads them over the following lines: into the hook line, the first sentence stays as the hook; into a body line, they become consecutive body lines; a "Comment …" sentence replaces the call-to-action.
 
@@ -82,7 +85,7 @@ Every generated voice-over has a player and a WAV download.
 
 ## The helper (`bridge/`)
 
-`./bridge/start.sh` runs `bridge/server.py`, a small program that stays on your computer. It serves the app and adds Claude through your Claude Code, Edge speech, and a status check for each. It is locked down: it listens on `127.0.0.1` only; it refuses requests whose Host or Origin isn't this app; it needs a random token that changes every time it starts; and it serves only the app's own files (not `bridge/`, `tests/`, `.git` or dotfiles). `python3 tests/helper_check.py` checks all of this with a stand-in for Claude Code, without touching your real account.
+`./bridge/start.sh` runs `bridge/server.py`, a small program that stays on your computer. It serves the app and adds Claude through your Claude Code (text and images), Edge speech, reel video analysis (frames and speech-to-text) and a status check for each. Optional packages are installed into `bridge/.venv`, never your system Python. It is locked down: it listens on `127.0.0.1` only; it refuses requests whose Host or Origin isn't this app; it needs a random token that changes every time it starts; and it serves only the app's own files (not `bridge/`, `tests/`, `.git` or dotfiles). `python3 tests/helper_check.py` checks all of this with a stand-in for Claude Code, without touching your real account.
 
 ## Instagram: one or many accounts
 

@@ -177,8 +177,15 @@
     <h3>Import a reel as a script</h3>
     <div class="refcard" id="impRef"></div>
     <p class="note" id="impStatus" role="status"></p>
-    <label>Caption, or what the reel says
-      <textarea id="impText" rows="7" placeholder="Paste the caption or a transcript. The first sentence becomes the hook and the rest flows into lines."></textarea>
+    <label class="dropzone" id="impDrop">
+      <input type="file" id="impFile" accept="video/*" hidden>
+      <span class="dzicon" aria-hidden="true">⬆</span>
+      <span id="impDropText"></span>
+    </label>
+    <ul class="prog" id="impProg" hidden></ul>
+    <div class="frames" id="impFrames"></div>
+    <label>Caption, or what the reel says <small class="muted">(optional if you drop the video)</small>
+      <textarea id="impText" rows="5" placeholder="Paste the caption or a transcript. The first sentence becomes the hook and the rest flows into lines."></textarea>
     </label>
     <label class="check"><input id="impRewrite" type="checkbox"> Rewrite it in my own words with Claude</label>
     <p class="muted small" id="impHint"></p>

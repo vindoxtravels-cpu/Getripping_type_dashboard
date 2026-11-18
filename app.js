@@ -261,9 +261,24 @@ function countUps() {
   });
 }
 
-/* ---------- reel link import ---------- */
+/* ---------- reel link import: Claude watches the video as frames and writes the script ---------- */
 const impd = $('#importDialog'); let impState = null;
+const BD = new Map(); // script id → the cut frames, so the breakdown can show thumbnails this session
 function impStatus(msg, kind) { const n = $('#impStatus'); n.textContent = msg; n.className = 'note ' + (kind || ''); }
+function setProg(steps) { const p = $('#impProg'); p.hidden = !steps.length; p.innerHTML = steps.map(([l, st]) => `<li class="${st}"><span class="dotx"></span>${esc(l)}</li>`).join(''); }
+function renderFrames(v) { $('#impFrames').innerHTML = v ? v.frames.map((f) => `<figure><img src="data:image/jpeg;base64,${f.jpeg}" alt=""><figcaption>${Number(f.t).toFixed(1)}s</figcaption></figure>`).join('') : ''; }
+function dropState() {
+  const h = Helper.info() || {}, ok = !!(h.available && h.ffmpeg);
+  $('#impDrop').classList.toggle('off', !ok); $('#impFile').disabled = !ok;
+  $('#impDropText').textContent = !h.available ? 'Video analysis needs the helper: run ./bridge/start.sh and open http://localhost:5174.'
+    : !h.ffmpeg ? 'Video analysis needs ffmpeg. Install it with “brew install ffmpeg”, then restart the helper.'
+    : 'Drop the reel video here, or choose a file. Claude cuts it into frames and writes the script.';
+}
+function applyStyle(sc, st) {
+  if (!st) return;
+  if (themeByName(st.theme)) sc.style.theme = st.theme; if (PACES[st.pace]) sc.style.pace = st.pace;
+  Object.entries(st.fx || {}).forEach(([k, v]) => { if (RV.FX_OPTIONS[k] && RV.FX_OPTIONS[k].includes(v)) sc.style.fx[k] = v; });
+}
 async function resolveReel(parsed) {
   const out = { source: 'none', caption: '', thumb: '', mediaUrl: '', author: '', permalink: parsed.url };
   for (const a of IG.list()) {
@@ -278,25 +293,65 @@ async function resolveReel(parsed) {
 }
 async function openImport(url, text) {
   const parsed = Tools.parseReelUrl(url);
-  $('#impText').value = text || ''; $('#impRef').innerHTML = ''; impStatus('');
+  $('#impText').value = text || ''; $('#impRef').innerHTML = ''; impStatus(''); setProg([]); renderFrames(null);
   $('#impRewrite').checked = AI.configured(); $('#impRewrite').disabled = !AI.configured();
-  $('#impHint').innerHTML = AI.configured() ? 'Claude rewrites it with original wording, so you are not copying someone else’s script.' : `Connect Claude to rewrite it in your own words. <button type="button" class="linkbtn inline" id="impKey">Connect</button>`;
+  $('#impHint').innerHTML = AI.configured() ? 'Claude rewrites it with original wording, so you are not copying someone else’s script.' : `Connect Claude to have it watch the video and write the script. <button type="button" class="linkbtn inline" id="impKey">Connect</button>`;
   const k = $('#impKey'); if (k) k.onclick = () => { impd.close(); openApi(); };
-  impState = { url: parsed ? parsed.url : '', ref: null };
+  impState = { url: parsed ? parsed.url : '', ref: null, video: null, running: false };
+  await Helper.session(); dropState();
   if (!impd.open) impd.showModal();
-  if (!parsed) { impStatus('That doesn’t look like an Instagram reel link. You can still paste text below.', 'bad'); return; }
+  if (!parsed) { impStatus(url ? 'That doesn’t look like an Instagram reel link. You can still drop a video or paste text below.' : 'Drop a video file, or paste the caption or what the reel says.', url ? 'bad' : ''); return; }
   impStatus('Looking up the reel…');
-  const r = await resolveReel(parsed); impState.ref = r;
-  const media = r.mediaUrl ? `<video src="${esc(r.mediaUrl)}" controls muted playsinline preload="metadata"></video>` : r.thumb ? `<img src="${esc(r.thumb)}" alt="" referrerpolicy="no-referrer">` : `<div class="noimg">${svg('film2', 26)}</div>`;
+  const mine = impState, r = await resolveReel(parsed); if (impState !== mine) return; mine.ref = r;
+  const media = r.mediaUrl ? '' : r.thumb ? `<img src="${esc(r.thumb)}" alt="" referrerpolicy="no-referrer">` : `<div class="noimg">${svg('film2', 26)}</div>`;
   $('#impRef').innerHTML = `${media}<div class="refmeta"><b>${esc(r.author || 'Instagram reel')}</b><a href="${esc(r.permalink)}" target="_blank" rel="noopener">Open the original ↗</a><span class="muted small">${r.caption ? esc(r.caption.slice(0, 140)) + (r.caption.length > 140 ? '…' : '') : 'No caption loaded'}</span></div>`;
-  if (r.source === 'own') impStatus(`Found in your account ${r.author}. Caption loaded.`, 'ok');
-  else if (r.source === 'oembed') impStatus('Loaded through Instagram’s embed API.', 'ok');
-  else impStatus('Instagram doesn’t let apps read other people’s reels, so paste the caption, or what they say, below.');
+  const h = Helper.info() || {}, canWatch = !!(h.available && h.ffmpeg && AI.configured());
+  if (r.source === 'own') impStatus(`Found in your account ${r.author}. ${r.mediaUrl ? (canWatch ? 'Watching the video…' : 'Caption loaded. Connect Claude and start the helper to have it watch the video.') : 'Caption loaded. Instagram gave no video file for this one, so drop the video below if you have it.'}`, 'ok');
+  else if (r.source === 'oembed') impStatus('Loaded through Instagram’s embed API. That gives the caption and a thumbnail but not the video, so drop the video below for a frame-by-frame breakdown.', 'ok');
+  else impStatus('Instagram doesn’t let apps download other people’s reels. Drop the video below if you have it (your own, one you have permission to use, or a screen recording), or paste the caption or what they say.');
   if (r.caption && !$('#impText').value) $('#impText').value = r.caption;
+  if (r.mediaUrl && canWatch) watchVideo({ url: r.mediaUrl });
 }
+async function watchVideo(src) {
+  if (!impState || impState.running) return;
+  const mine = impState; mine.running = true; renderFrames(null); impStatus('');
+  setProg([[src.file ? 'Reading your video' : 'Downloading the reel', 'run']]);
+  try {
+    const v = src.file ? await Helper.upload('/api/reel/analyze', src.file) : await Helper.call('/api/reel/analyze', { method: 'POST', body: { url: src.url } });
+    if (impState !== mine) return;
+    mine.video = v; renderFrames(v);
+    const spoken = v.transcript && v.transcript.segments && v.transcript.segments.length;
+    setProg([[`Cut ${v.frames.length} frames from ${v.duration} s`, 'done'], [!v.hasAudio ? 'No audio track' : !v.speechAvailable ? 'Speech-to-text is off (add it with ./bridge/start.sh --speech)' : spoken ? 'Transcribed the speech' : 'No speech found', 'done']]);
+    if (AI.configured()) await createFromVideo();
+    else impStatus('The frames are ready. Connect Claude to have it write the script, or press Create script to build one from the speech and caption.', 'ok');
+  } catch (err) { if (impState === mine) { setProg([]); impStatus(err.message, 'bad'); } } finally { mine.running = false; }
+}
+async function createFromVideo() {
+  const v = impState.video, rewrite = $('#impRewrite').checked && AI.configured(), mine = impState;
+  const steps = (st) => [[`Cut ${v.frames.length} frames`, 'done'], ['Claude is watching the frames and writing the script…', st]];
+  setProg(steps('run')); impStatus('');
+  try {
+    const r = await AI.reelToScript({ frames: v.frames, transcript: v.transcript, caption: $('#impText').value.trim(), duration: v.duration, rewrite, themes: THEMES.map((t) => t.name), fx: RV.FX_OPTIONS, niche: S.niche });
+    if (impState !== mine) return;
+    const sc = scriptFrom(Tools.blocksFrom(r, { addCta: true }), r.title || shortTitle(r.hook), rewrite ? 'Watched and rewritten by Claude' : 'Watched by Claude');
+    applyStyle(sc, r.style); sc.breakdown = r.breakdown; sc.ref = mine.url; BD.set(sc.id, v.frames);
+    addScript(sc); impd.close(); toast(`Claude watched ${v.frames.length} frames and wrote the script`); go(1);
+  } catch (err) { if (impState === mine) { setProg(steps('fail')); impStatus(err.message, 'bad'); } }
+}
+$('#impFile').onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) watchVideo({ file: f }); };
+(() => {
+  const dz = $('#impDrop');
+  ['dragenter', 'dragover'].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); if (!dz.classList.contains('off')) dz.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove('over'); }));
+  dz.addEventListener('drop', (e) => { if (dz.classList.contains('off')) return; const f = e.dataTransfer.files[0]; if (f && (!f.type || /^video\//.test(f.type))) watchVideo({ file: f }); else toast('Drop a video file.'); });
+})();
 $('#impGo').onclick = async (e) => {
-  const text = $('#impText').value.trim(); if (!text) { impStatus('Paste the caption or what the reel says first.', 'bad'); return; }
-  const rewrite = $('#impRewrite').checked && AI.configured(), btn = e.currentTarget; busy(btn, true, rewrite ? 'Claude is writing…' : 'Splitting…');
+  const btn = e.currentTarget, v = impState && impState.video;
+  if (v && AI.configured() && !impState.running) { busy(btn, true, 'Claude is watching…'); await createFromVideo(); busy(btn, false); return; }
+  let text = $('#impText').value.trim();
+  if (v && v.transcript && v.transcript.segments.length) text = (text ? text + '\n' : '') + v.transcript.segments.map((x) => x.text).join(' ');
+  if (!text) { impStatus('Drop a video, or paste the caption or what the reel says first.', 'bad'); return; }
+  const rewrite = $('#impRewrite').checked && AI.configured(); busy(btn, true, rewrite ? 'Claude is writing…' : 'Splitting…');
   try {
     const parts = rewrite ? await AI.scriptFromText({ text, niche: S.niche }) : Tools.splitScript(text);
     if (!parts) throw new Error('Could not find any sentences in that text.');
@@ -390,6 +445,11 @@ function timelineHtml(sc) {
   const segs = sc.blocks.map((b) => ({ type: b.type, s: Math.max(1.2, words(b.text).length / wps(sc)) })), tot = segs.reduce((a, s) => a + s.s, 0) || 1;
   return segs.map((s) => `<i class="tseg ${s.type}" style="flex:${s.s / tot}" title="${s.type} · ${s.s.toFixed(1)} s"></i>`).join('');
 }
+function breakdownHtml(sc) {
+  if (!sc.breakdown || !sc.breakdown.length) return '';
+  const frames = BD.get(sc.id) || [];
+  return `<details class="breakdown"><summary>${svg('film2', 15)} Reel breakdown · ${sc.breakdown.length} frames</summary><div class="bdlist">${sc.breakdown.map((b, i) => `<div class="bditem">${frames[i] ? `<img src="data:image/jpeg;base64,${frames[i].jpeg}" alt="">` : '<span class="bdno"></span>'}<div><b>${Number(b.t).toFixed(1)}s</b><p>${esc(b.visual)}</p>${b.text ? `<p class="bdtext">“${esc(b.text)}”</p>` : ''}</div></div>`).join('')}</div></details>`;
+}
 function viewScript() {
   const sc = active();
   const draw = () => {
@@ -403,6 +463,7 @@ function viewScript() {
       <section class="editor panel">
         <div class="ed-head"><input class="title-in" id="sTitle" value="${esc(sc.title)}" aria-label="Script title"><span class="chip" id="dur">${mmss(seconds(sc))}</span><span class="chip blue">${svg('link', 13)} ${esc(sc.source)}</span></div>
         <div class="timeline" id="timeline" aria-hidden="true">${timelineHtml(sc)}</div>
+        ${breakdownHtml(sc)}
         <p class="tip">${svg('sparkles', 14)} Paste a whole caption into the hook line, or the line below it, and it splits into lines. Paste a reel link to import it.</p>
         <div id="blocks">${sc.blocks.map((b, i) => `
           <div class="blk ${b.type}" style="--i:${i}">${b.type !== 'body' ? `<span class="tag">${b.type === 'hook' ? 'Hook' : 'Comment'}</span>` : ''}

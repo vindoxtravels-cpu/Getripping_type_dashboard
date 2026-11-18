@@ -11,6 +11,7 @@ Everything stays on this machine. Only this app's own page can talk to it: reque
 localhost, from the same site, and carry a random token that changes every time the helper starts.
 """
 import asyncio
+import base64
 import glob
 import json
 import os
@@ -21,6 +22,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -29,6 +31,12 @@ try:
     import edge_tts  # pip install edge-tts
 except Exception:  # noqa: BLE001
     edge_tts = None
+try:  # optional: speech-to-text for reels (./bridge/start.sh --speech installs it)
+    import numpy as np
+    from faster_whisper import WhisperModel
+except Exception:  # noqa: BLE001
+    np = None
+    WhisperModel = None
 
 ROOT = Path(__file__).resolve().parent.parent
 PORT = int(os.environ.get("PORT", "5174"))
@@ -39,7 +47,18 @@ MIME = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=ut
         ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".png": "image/png", ".ico": "image/x-icon", ".json": "application/json"}
 HIDDEN_DIRS = {"bridge", "tests", "node_modules", "reference"}
 MAX_BODY = 200_000
+MAX_VISION = 25_000_000          # frames sent to Claude
+MAX_VIDEO = 300 * 1024 * 1024    # a reel video
+CDN_SUFFIXES = (".fbcdn.net", ".cdninstagram.com")  # the only hosts the helper will download a reel from
 CLAUDE_SLOTS = threading.Semaphore(2)
+ANALYZE_SLOT = threading.Semaphore(1)
+
+
+def _find_tool(name):
+    return shutil.which(name) or next((p for p in (f"/opt/homebrew/bin/{name}", f"/usr/local/bin/{name}") if os.access(p, os.X_OK)), None)
+
+
+FFMPEG, FFPROBE = _find_tool("ffmpeg"), _find_tool("ffprobe")
 
 
 def clean_env():
@@ -133,6 +152,130 @@ def claude_ask(system, user, model):
     return str(j.get("result", ""))
 
 
+def claude_vision(system, text, images, model):
+    """Claude looks at frames. Images go in as message content, so every tool can stay switched off."""
+    b = find_claude()
+    if not b:
+        raise RuntimeError("Claude Code is not installed on this computer.")
+    if not isinstance(images, list) or not 1 <= len(images) <= 40 or not all(isinstance(i, str) and re.fullmatch(r"[A-Za-z0-9+/=]{20,600000}", i) for i in images):
+        raise RuntimeError("Send 1 to 40 JPEG frames.")
+    alias = model if model in ("sonnet", "haiku", "opus") else "sonnet"
+    content = [{"type": "text", "text": text}] + [{"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": i}} for i in images]
+    msg = json.dumps({"type": "user", "message": {"role": "user", "content": content}}) + "\n"
+    cmd = [b, "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--no-session-persistence", "--disable-slash-commands",
+           "--strict-mcp-config", "--system-prompt", system or "You are a helpful assistant.", "--model", alias, "--tools", ""]
+    if not CLAUDE_SLOTS.acquire(timeout=5):
+        raise RuntimeError("Claude is busy with another request. Try again in a moment.")
+    try:
+        with tempfile.TemporaryDirectory() as cwd:
+            r = subprocess.run(cmd, input=msg, capture_output=True, text=True, timeout=300, cwd=cwd, env=clean_env())
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("Claude took too long to look at the video. Try again.")
+    finally:
+        CLAUDE_SLOTS.release()
+    result = None
+    for line in (r.stdout or "").splitlines():
+        try:
+            j = json.loads(line)
+        except Exception:  # noqa: BLE001
+            continue
+        if j.get("type") == "result":
+            result = j
+    if not result:
+        raise RuntimeError((r.stderr or "Claude Code returned nothing.")[:300])
+    if result.get("is_error"):
+        msg = str(result.get("result") or "Claude Code reported an error.")
+        if re.search(r"login|auth|sign", msg, re.I):
+            msg = "Claude Code is not signed in. Use Sign in with Claude in the app."
+        raise RuntimeError(msg[:300])
+    return str(result.get("result", ""))
+
+
+def probe_video(path):
+    r = subprocess.run([FFPROBE, "-v", "error", "-show_entries", "format=duration:stream=codec_type", "-of", "json", path], capture_output=True, text=True, timeout=60)
+    j = json.loads(r.stdout or "{}")
+    streams = j.get("streams") or []
+    dur = float((j.get("format") or {}).get("duration") or 0)
+    return {"duration": dur, "hasVideo": any(x.get("codec_type") == "video" for x in streams), "hasAudio": any(x.get("codec_type") == "audio" for x in streams)}
+
+
+def cut_frames(path, duration, out_dir, max_frames=30):
+    """Frames at every scene change, plus evenly spaced ones so slow scenes are covered too."""
+    gap = max(1.5, duration / 14)
+    vf = f"select='isnan(prev_selected_t)+gt(scene,0.22)+gte(t-prev_selected_t,{gap:.2f})',scale=480:-2,showinfo"
+    last = None
+    for mode in (["-fps_mode", "vfr"], ["-vsync", "vfr"]):  # the flag was renamed in newer ffmpeg
+        for f in out_dir.glob("f_*.jpg"):
+            f.unlink()
+        last = subprocess.run([FFMPEG, "-v", "info", "-i", path, "-an", "-vf", vf, *mode, "-q:v", "4", "-frames:v", str(max_frames), str(out_dir / "f_%03d.jpg")],
+                              capture_output=True, text=True, timeout=240)
+        if last.returncode == 0:
+            break
+    if last is None or last.returncode != 0:
+        raise RuntimeError("ffmpeg could not read this video.")
+    times = [float(m.group(1)) for m in re.finditer(r"pts_time:([\d.]+)", last.stderr)]
+    files = sorted(out_dir.glob("f_*.jpg"))
+    return [{"t": round(times[i] if i < len(times) else 0.0, 2), "jpeg": base64.b64encode(f.read_bytes()).decode()} for i, f in enumerate(files)]
+
+
+_whisper = {"model": None, "lock": threading.Lock()}
+
+
+def transcribe(path):
+    """Local speech-to-text. ffmpeg decodes the audio, so no extra audio library is needed."""
+    if not WhisperModel:
+        return None
+    raw = subprocess.run([FFMPEG, "-v", "error", "-i", path, "-vn", "-ac", "1", "-ar", "16000", "-f", "f32le", "-"], capture_output=True, timeout=300).stdout
+    if len(raw) < 16000 * 4 // 2:
+        return {"segments": [], "language": None}
+    audio = np.frombuffer(raw, dtype=np.float32)
+    with _whisper["lock"]:
+        if _whisper["model"] is None:
+            _whisper["model"] = WhisperModel("base", device="cpu", compute_type="int8")
+        segs, info = _whisper["model"].transcribe(audio, vad_filter=True)
+        out = [{"start": round(x.start, 1), "end": round(x.end, 1), "text": x.text.strip()} for x in segs]
+    return {"segments": out, "language": info.language}
+
+
+def download_cdn(url, dest):
+    u = urlparse(url)
+    if u.scheme != "https" or not (u.hostname or "").endswith(CDN_SUFFIXES):
+        raise RuntimeError("The helper only downloads videos from Instagram's own servers.")
+    with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=60) as r:
+        if not (urlparse(r.geturl()).hostname or "").endswith(CDN_SUFFIXES):
+            raise RuntimeError("The helper only downloads videos from Instagram's own servers.")
+        size = 0
+        with open(dest, "wb") as f:
+            while True:
+                chunk = r.read(1 << 20)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > MAX_VIDEO:
+                    raise RuntimeError("That video is too large.")
+                f.write(chunk)
+
+
+def analyze_video(video_path, work_dir):
+    if not FFMPEG or not FFPROBE:
+        raise RuntimeError("Video analysis needs ffmpeg. Install it with: brew install ffmpeg")
+    info = probe_video(video_path)
+    if not info["hasVideo"] or info["duration"] <= 0:
+        raise RuntimeError("That file does not look like a video.")
+    if info["duration"] > 600:
+        raise RuntimeError("That video is longer than 10 minutes. Trim it to the reel first.")
+    if not ANALYZE_SLOT.acquire(timeout=5):
+        raise RuntimeError("Another video is being analyzed. Try again in a moment.")
+    try:
+        frames = cut_frames(video_path, info["duration"], work_dir)
+        speech = transcribe(video_path) if info["hasAudio"] else {"segments": [], "language": None}
+    finally:
+        ANALYZE_SLOT.release()
+    if not frames:
+        raise RuntimeError("No frames could be cut from that video.")
+    return {"duration": round(info["duration"], 1), "hasAudio": info["hasAudio"], "frames": frames, "transcript": speech, "speechAvailable": bool(WhisperModel)}
+
+
 _voices = {"t": 0.0, "v": None}
 
 
@@ -206,11 +349,24 @@ class Handler(BaseHTTPRequestHandler):
             self._json(401, {"error": "Missing or wrong helper token. Reload the page."}); return False
         return True
 
-    def _body(self):
+    def _body(self, limit=MAX_BODY):
         n = int(self.headers.get("Content-Length") or 0)
-        if n > MAX_BODY:
+        if n > limit:
             raise RuntimeError("Request too large.")
         return json.loads(self.rfile.read(n) or b"{}")
+
+    def _save_upload(self, dest):
+        n = int(self.headers.get("Content-Length") or 0)
+        if n <= 0 or n > MAX_VIDEO:
+            raise RuntimeError("Send a video file up to 300 MB.")
+        left = n
+        with open(dest, "wb") as f:
+            while left > 0:
+                chunk = self.rfile.read(min(1 << 20, left))
+                if not chunk:
+                    break
+                f.write(chunk)
+                left -= len(chunk)
 
     # ---- routes
     def do_GET(self):
@@ -233,6 +389,21 @@ class Handler(BaseHTTPRequestHandler):
         if not self._guard():
             return
         try:
+            if path == "/api/reel/analyze":
+                with tempfile.TemporaryDirectory() as td:
+                    td = Path(td)
+                    video = td / "in.video"
+                    if self.headers.get("Content-Type", "").startswith("application/json"):
+                        download_cdn(str(self._body().get("url", "")), video)
+                    else:
+                        self._save_upload(video)
+                    return self._json(200, analyze_video(str(video), td))
+            if path == "/api/claude/vision":
+                b = self._body(MAX_VISION)
+                text = str(b.get("user", ""))
+                if not text or len(text) > 30000:
+                    raise RuntimeError("Prompt must be 1 to 30000 characters.")
+                return self._json(200, {"text": claude_vision(str(b.get("system", ""))[:4000], text, b.get("images"), str(b.get("model", "sonnet")))})
             body = self._body()
             if path == "/api/claude/ask":
                 user = str(body.get("user", ""))
@@ -254,7 +425,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             if path == "/api/session":
-                return self._json(200, {"token": TOKEN, "edge": bool(edge_tts), "claudeInstalled": bool(find_claude())})
+                return self._json(200, {"token": TOKEN, "edge": bool(edge_tts), "claudeInstalled": bool(find_claude()), "ffmpeg": bool(FFMPEG and FFPROBE), "speech": bool(WhisperModel)})
             if path == "/api/claude/status":
                 return self._json(200, claude_status())
             if path == "/api/tts/voices":
@@ -271,6 +442,8 @@ if __name__ == "__main__":
     print(f"\n  Reel Studio helper is running.\n\n  Open  http://localhost:{PORT}\n")
     print(f"  Claude Code : {'found' if c else 'not found (install it to use Sign in with Claude)'}")
     print(f"  Edge voices : {'ready' if edge_tts else 'missing, run ./bridge/start.sh to install'}")
+    print(f"  Video frames: {'ready (ffmpeg)' if FFMPEG and FFPROBE else 'needs ffmpeg: brew install ffmpeg'}")
+    print(f"  Speech text : {'ready' if WhisperModel else 'off, run ./bridge/start.sh --speech to add it'}")
     print("\n  Press Ctrl+C to stop.\n")
     try:
         srv.serve_forever()

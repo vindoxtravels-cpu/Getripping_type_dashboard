@@ -5,6 +5,9 @@ so it never touches your real account. Edge speech is only checked if edge-tts i
 
 Run:  python3 tests/helper_check.py
 """
+import base64
+import importlib.util
+import io
 import json
 import os
 import socket
@@ -13,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import shutil
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -92,6 +96,65 @@ cat > "{tmp}/last_prompt"; echo "$@" > "{tmp}/last_args"; echo "${{ANTHROPIC_API
         check("rejects an unknown voice", req(base, "/api/tts/edge", "POST", H, b'{"text":"hi","voice":"../../x"}')[0] == 400)
         check("rejects a bad speed", req(base, "/api/tts/edge", "POST", H, b'{"text":"hi","voice":"en-US-AriaNeural","rate":"fast"}')[0] == 400)
         check("rejects an oversized request", req(base, "/api/claude/ask", "POST", H, b'{"user":"' + b"x" * 250000 + b'"}')[0] == 400)
+
+        # ---- reel video analysis
+        ff = shutil.which("ffmpeg") or "/opt/homebrew/bin/ffmpeg"
+        check("session reports ffmpeg and speech flags", "ffmpeg" in sess and "speech" in sess, sess)
+        check("analyze without a token is refused", req(base, "/api/reel/analyze", "POST", {"Content-Type": "video/mp4"}, b"x")[0] == 401)
+        check("analyze refuses addresses that are not Instagram's video servers",
+              req(base, "/api/reel/analyze", "POST", H, b'{"url":"https://example.com/a.mp4"}')[0] == 400)
+        check("analyze refuses plain http", req(base, "/api/reel/analyze", "POST", H, b'{"url":"http://x.fbcdn.net/a.mp4"}')[0] == 400)
+        if sess.get("ffmpeg") and os.access(ff, os.X_OK):
+            vid, jpg = tmp / "t.mp4", tmp / "f.jpg"
+            subprocess.run([ff, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=240x426:rate=25:duration=4", "-f", "lavfi", "-i", "anullsrc=r=16000:cl=mono",
+                            "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", str(vid)], check=True)
+            subprocess.run([ff, "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=red:s=64x64:d=1", "-frames:v", "1", str(jpg)], check=True)
+            st, body, _ = req(base, "/api/reel/analyze", "POST", dict(H, **{"Content-Type": "video/mp4"}), vid.read_bytes())
+            a = json.loads(body)
+            check("analyze cuts frames, with times and valid JPEGs", st == 200 and len(a.get("frames", [])) >= 2 and all(base64.b64decode(f["jpeg"])[:2] == b"\xff\xd8" for f in a["frames"]), a if st != 200 else len(a.get("frames", [])))
+            check("analyze reports duration and audio", abs(a.get("duration", 0) - 4) < 0.6 and a.get("hasAudio") is True, {k: a.get(k) for k in ("duration", "hasAudio")})
+            check("analyze returns a transcript object", isinstance(a.get("transcript"), (dict, type(None))))
+            check("analyze rejects something that is not a video", req(base, "/api/reel/analyze", "POST", dict(H, **{"Content-Type": "video/mp4"}), b"hello")[0] == 400)
+            img = base64.b64encode(jpg.read_bytes()).decode()
+            st, body, _ = req(base, "/api/claude/vision", "POST", H, json.dumps({"system": "s", "user": "what is this", "images": [img], "model": "haiku"}).encode())
+            check("vision returns Claude's text", st == 200 and json.loads(body).get("text") == "stub answer", body)
+            sent = (tmp / "last_prompt").read_text()
+            check("vision sends the frame to Claude as an image, with tools off", '"type": "image"' in sent and img[:40] in sent and "--tools" in (tmp / "last_args").read_text())
+            check("vision refuses a bad frame list", req(base, "/api/claude/vision", "POST", H, b'{"user":"x","images":["not base64!"]}')[0] == 400)
+            check("vision refuses no frames", req(base, "/api/claude/vision", "POST", H, b'{"user":"x","images":[]}')[0] == 400)
+        else:
+            print("skip frame cutting and vision (ffmpeg is not installed)")
+        # ---- downloading your own reel: only from Instagram's video servers
+        spec = importlib.util.spec_from_file_location("helper_server", ROOT / "bridge" / "server.py")
+        srv = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(srv)
+
+        class Fake:
+            def __init__(self, data, url): self.b, self.u = io.BytesIO(data), url
+            def read(self, n=-1): return self.b.read(n)
+            def geturl(self): return self.u
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        real_urlopen = srv.urllib.request.urlopen
+
+        def attempt(url, final, data, limit=None):
+            srv.urllib.request.urlopen = lambda *a, **k: Fake(data, final)
+            if limit: srv.MAX_VIDEO = limit
+            dest = tmp / "dl.bin"
+            if dest.exists(): dest.unlink()
+            try:
+                srv.download_cdn(url, dest); return dest.read_bytes()
+            except RuntimeError as e:
+                return str(e)
+            finally:
+                srv.MAX_VIDEO = 300 * 1024 * 1024
+                srv.urllib.request.urlopen = real_urlopen
+        check("download accepts Instagram's video servers", attempt("https://scontent-x.cdninstagram.com/v/a.mp4", "https://scontent-x.cdninstagram.com/v/a.mp4", b"VIDEO") == b"VIDEO")
+        check("download accepts fbcdn", attempt("https://video.xx.fbcdn.net/a.mp4", "https://video.xx.fbcdn.net/a.mp4", b"V") == b"V")
+        check("download refuses a look-alike host", "only downloads" in str(attempt("https://cdninstagram.com.evil.example/a.mp4", "https://cdninstagram.com.evil.example/a.mp4", b"V")))
+        check("download refuses a redirect to another host", "only downloads" in str(attempt("https://a.fbcdn.net/a.mp4", "https://evil.example/a.mp4", b"V")))
+        check("download refuses an oversized video", "too large" in str(attempt("https://a.fbcdn.net/a.mp4", "https://a.fbcdn.net/a.mp4", b"x" * 100, limit=10)))
         if sess.get("edge"):
             st, audio, hdr = req(base, "/api/tts/edge", "POST", H, b'{"text":"Testing one two.","voice":"en-US-AriaNeural","rate":"+0%"}')
             check("Edge speech returns audio", st == 200 and len(audio) > 2000 and hdr.get("Content-Type") == "audio/mpeg", (st, len(audio)))

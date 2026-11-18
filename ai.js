@@ -62,12 +62,13 @@ async function viaHelper(system, user) {
   try { return (await Helper.call('/api/claude/ask', { method: 'POST', body: { system, user, model: state.alias } })).text; }
   catch (e) { throw new AIError(e.message, { offline: e.offline, status: e.status }); }
 }
-async function viaKey(system, user, max) {
+async function viaKey(system, user, max, images) {
   let res;
+  const content = images && images.length ? [...images.map((data) => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } })), { type: 'text', text: user }] : user;
   try {
     res = await fetch(URL, { method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': state.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({ model: state.model, max_tokens: max, system, messages: [{ role: 'user', content: user }] }) });
+      body: JSON.stringify({ model: state.model, max_tokens: max, system, messages: [{ role: 'user', content }] }) });
   } catch (e) { throw new AIError('Could not reach Claude. Check your connection.', { network: true }); }
   let j; try { j = await res.json(); } catch (e) { throw new AIError('Unexpected reply from Claude (HTTP ' + res.status + ').'); }
   if (!res.ok || j.type === 'error') throw new AIError(friendly(res.status, j.error && j.error.message), { status: res.status });
@@ -78,6 +79,19 @@ async function ask({ system, user, max = 1500, json = false }) {
     if (!state.ready) { await refresh(); if (!state.ready) throw new AIError('Sign in with Claude first.', { nokey: true }); }
   } else if (!state.key) throw new AIError('Add your Claude API key first.', { nokey: true });
   const text = state.mode === 'signin' ? await viaHelper(system, user) : await viaKey(system, user, max);
+  return json ? extractJson(text) : text;
+}
+
+/** Like ask(), but Claude also sees images (JPEG frames as base64). */
+async function askVision({ system, user, images, max = 3500, json = false }) {
+  if (state.mode === 'signin') {
+    if (!state.ready) { await refresh(); if (!state.ready) throw new AIError('Sign in with Claude first.', { nokey: true }); }
+  } else if (!state.key) throw new AIError('Connect Claude first.', { nokey: true });
+  let text;
+  if (state.mode === 'signin') {
+    try { text = (await Helper.call('/api/claude/vision', { method: 'POST', body: { system, user, images, model: state.alias } })).text; }
+    catch (e) { throw new AIError(e.message, { offline: e.offline, status: e.status }); }
+  } else text = await viaKey(system, user, max, images);
   return json ? extractJson(text) : text;
 }
 
@@ -125,6 +139,27 @@ Return {"title":"...","hook":"...","body":["..."],"comment":"...","rationale":"o
   return { title: String(j.title || '').trim(), hook: String(j.hook).trim(), body: arr(j.body), comment: String(j.comment || '').trim(), rationale: String(j.rationale || '').trim() };
 }
 
+/** Watch a reel as frames (plus its speech and caption), write the script and describe every frame. */
+async function reelToScript({ frames, transcript, caption, duration, rewrite, themes, fx, niche }) {
+  const times = frames.map((f, i) => `${i + 1}) ${Number(f.t).toFixed(1)}s`).join('   ');
+  const segs = transcript && transcript.segments && transcript.segments.length ? transcript.segments.map((x) => `[${x.start}s to ${x.end}s] ${x.text}`).join('\n') : '';
+  const j = await askVision({ json: true, max: 4000, images: frames.map((f) => f.jpeg), system: 'You are a short-form video analyst and scriptwriter. You reply with only a JSON object, no prose and no code fences.', user:
+`You are watching a short vertical video (a Reel)${niche ? ' in the niche "' + niche + '"' : ''}, ${duration ? Math.round(duration) + ' seconds long, ' : ''}shown as ${frames.length} frames in time order. A frame was cut wherever the picture changes, plus evenly spaced ones. The images are in this order, with their times:
+${times}
+${caption ? 'CAPTION: ' + String(caption).slice(0, 2500) : 'There is no caption.'}
+${segs ? 'SPEECH (auto-transcribed, may contain small errors):\n' + segs.slice(0, 5000) : 'No speech was transcribed (the video may have no speech).'}
+
+Do this:
+1. "breakdown": one entry per frame, in order: "t" (its time in seconds), "visual" (what is shown, in one short sentence) and "text" (any on-screen text, copied exactly, or "").
+2. Write the script a creator would use to make this video: ONE hook line, body lines (one idea each, under 20 words) and ONE final comment call-to-action. If the on-screen text or the speech spells out the script, follow it. Otherwise infer it from the visuals.
+3. ${rewrite ? 'Use completely original wording: same idea, structure and pacing, but do not copy any sentence from the video.' : 'Stay faithful to the wording on screen and in the speech.'}
+4. "style": the look that best matches this video. theme must be one of: ${themes.join(' | ')}. pace is Calm, Balanced or Punchy. effects must use only these values: ${JSON.stringify(fx)}.
+Return {"title":"...","hook":"...","body":["..."],"comment":"...","breakdown":[{"t":0,"visual":"...","text":"..."}],"style":{"theme":"...","pace":"...","fx":{"caption":"...","transition":"...","camera":"...","particles":"..."}},"notes":"one sentence on what the video is about"}` });
+  if (!j.hook) throw new AIError('Claude could not find a script in that video. Try pasting the caption too.');
+  const bd = Array.isArray(j.breakdown) ? j.breakdown.map((b, i) => ({ t: Number(b.t) || (frames[i] ? frames[i].t : 0), visual: String(b.visual || '').slice(0, 260), text: String(b.text || '').slice(0, 260) })) : [];
+  return { title: String(j.title || '').trim(), hook: String(j.hook).trim(), body: arr(j.body), comment: String(j.comment || '').trim(), breakdown: bd, style: j.style || {}, notes: String(j.notes || '').trim() };
+}
+
 async function test() { const t = await ask({ system: 'Reply with the single word OK.', user: 'ping', max: 10 }); return /ok/i.test(t); }
 
 window.AI = {
@@ -137,6 +172,6 @@ window.AI = {
   setOptions(model, remember) { state.model = model || state.model; state.remembered = !!remember; persist(); },
   clear() { state.key = ''; state.remembered = false; persist(); },
   signIn: () => Helper.call('/api/claude/login', { method: 'POST', body: {} }),
-  ask, scriptFromText, direct, fromReference, test,
+  ask, askVision, scriptFromText, direct, fromReference, reelToScript, test,
 };
 })();
