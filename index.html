@@ -2,8 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Get Ripping · Video Automation Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reel Studio · Video Workflow Dashboard</title>
+<meta name="theme-color" content="#0a0a0b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -14,7 +20,7 @@
     <header class="chrome">
       <div class="dots"><i></i><i></i><i></i></div>
       <div class="tabs" id="tabs" role="tablist"></div>
-      <button class="gear" id="openSettings" title="Automation settings" aria-label="Automation settings">⚙</button>
+      <button class="gear" id="openSettings" title="Settings" aria-label="Settings">⚙</button>
     </header>
     <section id="view"></section>
     <footer class="foot">
@@ -26,20 +32,39 @@
 
 <dialog id="settings">
   <form method="dialog" class="settings-form">
-    <h3>Automation settings</h3>
-    <p class="muted">Point Produce at your video pipeline (n8n, Make, Zapier, or your own API). The dashboard POSTs the locked script as JSON. Leave empty to run the built-in simulation.</p>
+    <h3>Settings</h3>
+    <p class="muted">Point Produce at your video pipeline (n8n, Make, Zapier, or your own API). The dashboard POSTs the locked script, style and virality score as JSON. Leave it empty to run the built-in simulation.</p>
     <label>Webhook URL
       <input id="setWebhook" type="url" placeholder="https://your-n8n.example.com/webhook/video">
     </label>
     <label>Auth header (optional)
-      <input id="setAuth" type="text" placeholder="Bearer sk-…">
+      <input id="setAuth" type="text" placeholder="Bearer sk-…" autocomplete="off">
     </label>
-    <label>Handle
-      <input id="setHandle" type="text" placeholder="getripping">
+    <label>Instagram handle
+      <input id="setHandle" type="text" placeholder="yourbrand">
     </label>
     <div class="row end">
+      <button type="button" class="linkbtn danger" id="resetAll" style="margin-right:auto">Reset all data</button>
       <button value="cancel" class="btn ghost">Cancel</button>
-      <button value="save" class="btn dark" id="saveSettings">Save</button>
+      <button value="save" class="btn dark">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="schedule">
+  <form method="dialog" class="settings-form">
+    <h3>Schedule post</h3>
+    <p class="muted" id="schTitle"></p>
+    <p class="warn" id="schWarn" hidden>This video hasn't been rendered yet. You can still reserve the slot.</p>
+    <div class="row">
+      <label style="flex:1">Date <input id="schDate" type="date" required></label>
+      <label style="flex:1">Time <input id="schTime" type="time" value="08:00"></label>
+    </div>
+    <label class="check"><input id="schFeed" type="checkbox" checked> Post to feed</label>
+    <label class="check"><input id="schTrial" type="checkbox"> Post as a trial reel (shown to non-followers first)</label>
+    <div class="row end">
+      <button value="cancel" class="btn ghost" formnovalidate>Cancel</button>
+      <button value="save" class="btn dark">Schedule</button>
     </div>
   </form>
 </dialog>
