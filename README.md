@@ -133,6 +133,18 @@ A website can't sign in to Claude by itself: Anthropic's sign-in is for Claude C
 
 Safety: only sites you allow can reach the helper; a site gets no token until you enter the code (a new random code every time the helper starts, five wrong tries lock it); everything else still needs that token; and the helper still listens on `127.0.0.1` only. The token lives in that tab's `sessionStorage`. It needs the helper running whenever you use it, and it works in Chrome, Edge and Firefox (Chrome may ask to allow access to devices on your network); Safari blocks a secure page from reaching the helper. With no helper, use an API key.
 
+## Cartoon humour and your own clips
+
+Pick the **Cartoon humour** format (Discover, the importer or Studio). Studio then:
+
+1. Uses your **cartoon clips**: add your videos once (Studio → **Video clips → Manage clips**; they stay in this browser's storage, never uploaded). Each clip has a setting (beach, metro, street, bus stand, interview, court, kitchen…), what the characters do (standing, sitting, walking), a description and tags. **Let Claude tag every clip** watches 8 frames of each and fills these in, including where an end card (such as a logo) starts so it is not used as footage. You can edit anything.
+2. **Matches a clip to every line** of your script: Claude reads the clip descriptions and picks the one that fits the place and the joke (a beach line gets the beach clip, a "mind the gap" line the metro). Without Claude it matches by keywords and tags. You can change any scene in the list.
+3. Plays the clips **behind** the script with bold outlined subtitles, then adds the graphics on top: emphasis marks, transitions (whip, pixels, wipe…), the punch camera, particles, annotations, speed. The **Clip framing** row crops out the captions burnt into your clips (Crop) or leaves them (Full). Clip sound is not used; the voice-over and beat are.
+
+## AI director
+
+**Direct with Claude** now knows every effect (captions, caption position, emphasis marks, annotations, orbit, film looks, transitions, cameras, particles, the on/off effects and the presets) and what each is good for. It reads your script and sets the theme, pace, all effects and the icon and emphasised words of every scene. With the **Cartoon humour** format it also picks the clips. Add a **reference video** first and Claude watches it, then matches its motion and look (where captions sit, how words are marked, what graphics move, how scenes change, light or dark) and tells you what it matched. The reference is read in the browser (8 frames) and not saved; its description is kept so later runs keep the same style.
+
 ## Scripts written by itself (knowledge base and learning loop)
 
 At the top of **Discover**, open the **Knowledge base**. Add notes about your business (services, offers, FAQs, facts you can stand behind; paste text or import `.txt`, `.md`, `.csv`, `.json`; up to 20,000 characters a note, 60,000 in all), pick an audience, tone and an optional angle, choose 1, 3 or 5 scripts and press **Write scripts**. Notes are optional: with none, Studio writes evergreen advice and states no statistics. With notes, Claude is told to use only your facts and never invent prices, numbers or guarantees.
@@ -233,6 +245,7 @@ A rule-based score out of 100, not a trained model. It starts at 100 and loses p
 - `worker.js`, `wrangler.jsonc`, `.assetsignore`: the Cloudflare deployment and its Composio proxy
 - `post.js`: the film-look shader (dither, halftone, riso, pixel, thermal, duotone, X-ray)
 - `crt.js`, `THIRD_PARTY.md`: the CRT / VHS post-process adapted from Lemo-Opuscar (MIT) and its licence
+- `clips.js`: your cartoon clip library (IndexedDB) for the Cartoon humour format
 - `frames.js`: cuts a video into key frames in the browser (used when the helper isn't running)
 - `ai.js`: the Claude client (sign-in through the helper, or an API key)
 - `voice.js`: voice-over generation (Edge, ElevenLabs), joining, WAV export

@@ -3499,3 +3499,69 @@ pre.code {
   white-space: normal;
   cursor: pointer;
 }
+
+/* cartoon clips */
+.cliplist {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0;
+  max-height: 340px;
+  overflow: auto;
+}
+.clip {
+  display: flex;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--glass);
+}
+.clipthumb {
+  width: 56px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex: none;
+  background: #000;
+}
+.clipbody {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+.cliphead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.clipbody .row {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.clipbody label {
+  font-size: 12px;
+}
+.clipscenes {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+.clipscene {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+.clipscene select {
+  max-width: 55%;
+}
+.refrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}

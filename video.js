@@ -19,6 +19,9 @@
     T("Minimal", "#f6f6f3", "#161616", "#e4572e", "#161616", "dots", {
       look: "minimal",
     }),
+    T("Stick Humour", "#1b1f3a", "#ffd93b", "#ff5a5f", "#22d3ee", "dots", {
+      face: ["900", FONT],
+    }),
     T("Glass", "#0f0c29", "#ffffff", "#8b5cf6", "#22d3ee", "orbs", {
       look: "glass",
     }),
@@ -112,6 +115,13 @@
         "UI",
         "Editorial",
       ],
+    },
+    {
+      id: "humour",
+      name: "Cartoon humour",
+      hint: "Your cartoon clips (beach, metro, street…) with captions and graphics",
+      themes: ["Stick Humour", "Comic book", "Cartoon", "Pixel art"],
+      clips: true,
     },
     {
       id: "comic",
@@ -215,6 +225,9 @@
     mark: "pill",
     annot: "none",
     alternate: false,
+    clipfit: "crop",
+    outline: false,
+    clips: true,
   };
   /* a whole-picture look (print or screen style), one at a time */
   const LOOKS = [
@@ -229,7 +242,8 @@
   ];
   const ORBITS = ["none", "flags", "icons", "dots"];
   const FX_OPTIONS = {
-    layout: ["center", "top"],
+    clipfit: ["crop", "full"],
+    layout: ["center", "top", "bottom"],
     mark: ["pill", "underline", "circle", "strike", "stamp", "tag"],
     annot: ["none", "reticle", "radar", "marks"],
     orbit: ORBITS,
@@ -306,6 +320,8 @@
     ["vhs", "VHS tape"],
     ["scratch", "Film scratches"],
     ["alternate", "Alternate light and dark"],
+    ["outline", "Text outline"],
+    ["clips", "Use my clips"],
   ];
   const OFF = {
     glow: false,
@@ -325,6 +341,8 @@
     mark: "pill",
     annot: "none",
     alternate: false,
+    clipfit: "crop",
+    outline: false,
   };
   const PRESETS = {
     Clean: Object.assign({}, OFF, {
@@ -440,6 +458,17 @@
       look: "thermal",
       motifs: false,
     }),
+    "Cartoon humour": Object.assign({}, OFF, {
+      layout: "bottom",
+      outline: true,
+      caption: "bounce",
+      mark: "underline",
+      camera: "still",
+      transition: "whip",
+      particles: "none",
+      motifs: false,
+      clipfit: "crop",
+    }),
     "Annotated explainer": Object.assign({}, OFF, {
       layout: "top",
       mark: "underline",
@@ -530,7 +559,8 @@
 
   /* ---------- helpers ---------- */
   let HAS_LOOK = false,
-    TOP_LAYOUT = false;
+    TOP_LAYOUT = false,
+    BOTTOM_LAYOUT = false;
   let FACE = ["800", FONT];
   const faceFont = (size) => `${FACE[0]} ${size}px ${FACE[1]}`;
   const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
@@ -647,6 +677,7 @@
         ws,
         dur: Math.max(1.5, ws.length / wps + 0.5),
         motif,
+        clip: o.clips && o.clips[b.i] && o.clips[b.i].url ? o.clips[b.i] : null,
         emph: new Set((d.emphasis || []).map((x) => wordKey(String(x)))),
       };
     });
@@ -723,14 +754,22 @@
   /* ---------- text layout (cached per scene) ---------- */
   function layout(ctx, s) {
     if (s.layout) return s.layout;
-    const maxW = TOP_LAYOUT ? W - 150 : W - 130,
-      maxH = TOP_LAYOUT ? 330 : s.motif ? 620 : 800,
-      cy = TOP_LAYOUT ? 300 : s.motif || HAS_LOOK ? H * 0.58 : H * 0.46;
+    const maxW = TOP_LAYOUT ? W - 150 : BOTTOM_LAYOUT ? W - 90 : W - 130,
+      maxH = TOP_LAYOUT ? 330 : BOTTOM_LAYOUT ? 300 : s.motif ? 620 : 800,
+      cy = TOP_LAYOUT
+        ? 300
+        : BOTTOM_LAYOUT
+          ? H * 0.8
+          : s.motif || HAS_LOOK
+            ? H * 0.58
+            : H * 0.46;
     let size = TOP_LAYOUT
         ? 56
-        : s.type === "hook" || s.type === "outro"
-          ? 100
-          : 84,
+        : BOTTOM_LAYOUT
+          ? 70
+          : s.type === "hook" || s.type === "outro"
+            ? 100
+            : 84,
       lines,
       lh,
       space;
@@ -2812,6 +2851,72 @@
   const lookSupported = () =>
     !!(window.FilmPost && window.FilmPost.supported());
 
+  /* ---------- your own video clips as the scene background (see clips.js) ---------- */
+  const CLIPV = new Map(),
+    CLIP_ON = new Set();
+  function clipEl(s) {
+    const key = s.index + "|" + s.clip.url;
+    let v = CLIPV.get(key);
+    if (!v) {
+      v = document.createElement("video");
+      v.muted = true;
+      v.defaultMuted = true;
+      v.playsInline = true;
+      v.preload = "auto";
+      v.src = s.clip.url;
+      CLIPV.set(key, v);
+    }
+    return v;
+  }
+  /** Draw the scene's clip, kept in step with the scene's clock. Returns false while the clip is not ready. */
+  function drawClip(ctx, s, st, fit) {
+    const v = clipEl(s),
+      c = s.clip,
+      end = Math.max(c.start + 1, c.usable || v.duration || 5);
+    CLIP_ON.add(v);
+    if (v.readyState < 2) return false;
+    const span = Math.max(0.5, end - c.start - 0.1);
+    const want = c.start + (st % span);
+    if (Math.abs(v.currentTime - want) > 0.35) {
+      try {
+        v.currentTime = want;
+      } catch (e) {
+        /* not seekable yet */
+      }
+    }
+    if (v.paused) v.play().catch(() => {});
+    const vw = v.videoWidth || 720,
+      vh = v.videoHeight || 1280,
+      z = fit === "crop" ? 1.4 : 1,
+      k = Math.max(W / vw, H / vh) * z,
+      dw = vw * k,
+      dh = vh * k;
+    /* crop mode drops the burnt-in captions at the bottom and the title at the top */
+    ctx.drawImage(
+      v,
+      (W - dw) / 2,
+      fit === "crop" ? -0.15 * H : (H - dh) / 2,
+      dw,
+      dh,
+    );
+    return true;
+  }
+  const clipsEnd = () => {
+    CLIPV.forEach((v) => {
+      if (!CLIP_ON.has(v) && !v.paused) v.pause();
+    });
+    CLIP_ON.clear();
+  };
+  /** Free the video elements of clips that are no longer used (after a render, or when the script changes). */
+  const clipsRelease = () => {
+    CLIPV.forEach((v) => {
+      v.pause();
+      v.removeAttribute("src");
+      v.load();
+    });
+    CLIPV.clear();
+  };
+
   /* ---------- one frame ---------- */
   /* every other scene in the opposite colours (light and dark scenes taking turns) */
   const invertTheme = (th) => Object.assign({}, th, { bg: th.fg, fg: th.bg });
@@ -2821,6 +2926,7 @@
       drawFrame(ctx, p, tt);
     } finally {
       p.theme = real; // a scene may have drawn with swapped colours
+      clipsEnd();
     }
   }
   function drawFrame(ctx, p, tt) {
@@ -2830,6 +2936,7 @@
       light = lum(th.bg) > 0.6;
     HAS_LOOK = !!th.look;
     TOP_LAYOUT = fx.layout === "top";
+    BOTTOM_LAYOUT = fx.layout === "bottom";
     FACE = th.face || ["800", FONT];
     const s =
       p.scenes.find((sc) => t >= sc.start && t < sc.start + sc.dur) ||
@@ -2926,8 +3033,9 @@
     ctx.rotate(crot + trot);
     ctx.scale(zoom * (trot ? tzoom : 1), zoom * (trot ? tzoom : 1));
     ctx.translate(-W / 2 + tx, -H / 2 + ty);
-    drawBg(ctx, p, ta, s);
-    if (!TOP_LAYOUT) drawLook(ctx, p, t, s); // the templates' centrepieces would sit on top of a top caption
+    if (!(s.clip && fx.clips !== false && drawClip(ctx, s, st, fx.clipfit)))
+      drawBg(ctx, p, ta, s);
+    if (!TOP_LAYOUT && !s.clip) drawLook(ctx, p, t, s); // the templates' centrepieces would sit on top of a top caption
     if (fx.transition === "ring" && stx < 0.7) {
       const k = easeOutCubic(stx / 0.7);
       ctx.strokeStyle = rgba(th.ac, 0.5 * (1 - k));
@@ -2938,7 +3046,7 @@
     }
     drawOrbit(ctx, p, ta, stx, "back");
     drawParticles(ctx, p, ta, stx);
-    if (s.motif && !th.look)
+    if (s.motif && !th.look && !s.clip)
       drawMotif(
         ctx,
         s.motif,
@@ -3193,6 +3301,15 @@
             : emph || s.type === "outro"
               ? th.ac
               : th.fg;
+        if (fx.outline) {
+          ctx.save();
+          ctx.lineJoin = "round";
+          ctx.lineWidth = Math.max(6, L.size * 0.2);
+          ctx.strokeStyle = "#000";
+          ctx.shadowBlur = 0;
+          ctx.strokeText(str, it.x, it.y);
+          ctx.restore();
+        }
         if (sliceDx > 0.5) {
           const top = it.y - L.size * 1.2,
             mid = it.y - L.size * 0.32,
@@ -3459,7 +3576,7 @@
           : s.type === "comment"
             ? "CALL TO ACTION"
             : "";
-    if (label) {
+    if (label && !s.clip) {
       ctx.font = `700 24px ${FONT}`;
       const w = ctx.measureText(label).width + 40,
         e = easeOutCubic(clamp(stx / 0.35));
@@ -3730,6 +3847,7 @@
     DEFAULT_FX,
     FX_OPTIONS,
     SWITCHES,
+    clipsRelease,
     crtSupported,
     lookSupported,
     PRESETS,

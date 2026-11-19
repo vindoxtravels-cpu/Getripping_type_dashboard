@@ -346,6 +346,7 @@
   function fitFormat(sc) {
     const ok = fmtThemes();
     if (!ok.some((t) => t.name === sc.style.theme)) sc.style.theme = ok[0].name;
+    if (S.format === "humour" && !sc.humour) applyHumour(sc);
   }
   function formatBar(id) {
     return `<div class="formatbar" id="${id}" role="radiogroup" aria-label="Video format">${RV.FORMATS.map((f) => `<button type="button" role="radio" aria-checked="${f.id === S.format}" class="fmt ${f.id === S.format ? "on" : ""}" data-fmt="${f.id}" title="${esc(f.hint)}">${esc(f.name)}</button>`).join("")}</div>`;
@@ -361,9 +362,27 @@
             x.classList.toggle("on", on);
             x.setAttribute("aria-checked", on);
           });
+          if (S.format === "humour") onHumour();
           if (after) after();
         }),
     );
+  }
+  /** Picking Cartoon humour: use the clip library on the open script, or ask for clips first. */
+  async function onHumour() {
+    const lib = await ClipStore.list();
+    if (!lib.length) {
+      toast("Add your cartoon clips first");
+      openClips();
+      return;
+    }
+    if (onStage("production") || onStage("script")) {
+      const sc = active();
+      applyHumour(sc);
+      await assignClips(sc);
+      await ensureClips(sc);
+      if (onStage("production")) viewProduction();
+      else viewScript();
+    }
   }
   if (S.script) {
     S.scripts.push(
@@ -1620,9 +1639,170 @@
 
   /* ---------- 03 Studio (real video generation) ---------- */
   const PSTEPS = [["Script"], ["Voice"], ["Visuals"], ["Edit"]];
+  /* ---------- cartoon clips: matching your clips to the scenes of a script ---------- */
+  const SETTING_WORDS = {
+    beach:
+      /beach|sea\b|sand|coconut|vacation|holiday|island|goa|sun|swim|budget/i,
+    metro: /metro|train|station|platform|commute|gap\b|marksheet|travel/i,
+    street:
+      /\bauto\b|rickshaw|street|road|traffic|fare|biryani|bargain|negotiat|file\b/i,
+    "bus stand": /\bbus\b|stand|stop\b|wait/i,
+    interview:
+      /interview|embassy|window|counter|officer|question|token|answer|appa|statement/i,
+    court: /court|judge|appeal|refus|trial|lawyer|reject|deny|denied/i,
+    kitchen:
+      /home|mother|amma|appa|father|kitchen|family|parents|dinner|refund|childhood|since/i,
+    office: /agent|agency|consult|office|sharma|overseas|trial|fees?|policy/i,
+  };
+  const clipMetas = () => ClipStore.loaded();
+  const clipUse = (m) => Object.assign({ usable: ClipStore.usable(m) }, m);
+  function clipPlanFor(sc) {
+    if (!sc.clips || !sc.clips.length) return null;
+    return sc.blocks.map((b, i) => {
+      const a = sc.clips[i];
+      if (!a || !a.clip) return null;
+      const m = clipMetas().find((c) => c.id === a.clip),
+        url = m ? ClipStore.urlOf(m.id) : "";
+      if (!m || !url) return null;
+      const usable = ClipStore.usable(m),
+        first = ClipStore.first(m);
+      return {
+        url,
+        start: Math.min(
+          Math.max(a.start || 0, first),
+          Math.max(first, usable - 2),
+        ),
+        usable,
+        id: m.id,
+      };
+    });
+  }
+  /** Load the video files the script uses. Resolves true when something new became ready. */
+  async function ensureClips(sc) {
+    await ClipStore.list();
+    const ids = [
+      ...new Set((sc.clips || []).filter(Boolean).map((x) => x.clip)),
+    ];
+    const before = ids.filter((id) => ClipStore.urlOf(id)).length;
+    await ClipStore.ensure(ids);
+    return ids.filter((id) => ClipStore.urlOf(id)).length > before;
+  }
+  /** Keyword matching: a quick local fallback when Claude isn't connected. */
+  function keywordClips(sc) {
+    const lib = clipMetas();
+    if (!lib.length) return [];
+    const used = {},
+      out = [];
+    let last = "";
+    sc.blocks.forEach((b, i) => {
+      if (!b.text.trim()) {
+        out[i] = null;
+        return;
+      }
+      const words = b.text.toLowerCase();
+      const scored = lib.map((c) => {
+        let score = 0;
+        if (SETTING_WORDS[c.setting] && SETTING_WORDS[c.setting].test(words))
+          score += 3;
+        (c.tags || []).forEach((t) => {
+          if (t && words.includes(t)) score += 2;
+        });
+        (c.desc || "")
+          .toLowerCase()
+          .split(/\W+/)
+          .filter((w) => w.length > 4)
+          .forEach((w) => {
+            if (words.includes(w)) score += 0.5;
+          });
+        score -= (used[c.id] || 0) * 1.5;
+        if (c.id === last && lib.length > 1) score -= 1;
+        return { c, score };
+      });
+      scored.sort((x, y) => y.score - x.score);
+      const pick = scored[0].c,
+        usable = ClipStore.usable(pick);
+      out[i] = {
+        clip: pick.id,
+        start:
+          ClipStore.first(pick) +
+          Math.round(
+            ((used[pick.id] || 0) * 3) %
+              Math.max(1, usable - ClipStore.first(pick) - 2),
+          ),
+      };
+      used[pick.id] = (used[pick.id] || 0) + 1;
+      last = pick.id;
+    });
+    return out;
+  }
+  /** Pick a clip for every scene: Claude when connected (it reads the clip descriptions), keywords otherwise. */
+  async function assignClips(sc, opts = {}) {
+    await ClipStore.list();
+    const lib = clipMetas();
+    if (!lib.length) return false;
+    let plan = null;
+    if (AI.configured() && opts.ai !== false) {
+      try {
+        const idx = sc.blocks
+          .map((b, i) => (b.text.trim() ? i : -1))
+          .filter((i) => i >= 0);
+        const picks = await AI.pickClips({
+          scenes: idx.map((i) => sc.blocks[i].text),
+          clips: lib.map(clipUse),
+          title: sc.title,
+        });
+        plan = [];
+        idx.forEach((bi, k) => {
+          const pk = picks[k];
+          plan[bi] =
+            pk && lib.some((c) => c.id === pk.clip)
+              ? { clip: pk.clip, start: pk.start }
+              : null;
+        });
+        if (!plan.some(Boolean)) plan = null;
+      } catch (e) {
+        plan = null;
+      }
+    }
+    sc.clips = plan || keywordClips(sc);
+    sc.clipsBy = plan ? "Claude" : "keywords";
+    invalidate(sc);
+    save();
+    return true;
+  }
+  /** The look for the Cartoon humour format: bold subtitles over your clips. */
+  function applyHumour(sc) {
+    Object.assign(sc.style.fx, RV.PRESETS["Cartoon humour"]);
+    sc.style.fx.clips = true;
+    if (themeByName("Stick Humour")) sc.style.theme = "Stick Humour";
+    sc.humour = true;
+  }
+
+  /** What Claude is told about every effect, so the AI director can use all of them well. */
+  const DIRECTOR_CATALOG = () => ({
+    motifs: RV.MOTIFS,
+    switches: RV.SWITCHES.map(([k]) => k).filter(
+      (k) => k !== "motifs" && k !== "clips",
+    ),
+    notes: [
+      "caption: pop, bounce, spring are friendly and energetic; type and scramble feel techy; stamp, slice and glitch are punchy; wave, blur, rise, flip are smooth and elegant.",
+      "layout: center is the default; top puts a small caption at the top with visuals below (explainers, annotated screens); bottom puts bold subtitles over footage or cartoon clips.",
+      "mark: how emphasised words are marked: pill (highlight), underline, circle (key term), strike (something wrong or a myth), stamp (proof, warning), tag (label).",
+      "annot: reticle, radar and marks add annotation graphics for analysis or investigation topics; none otherwise.",
+      "orbit: chips (flags or icons) circling the scene icon, good when countries or tools are listed.",
+      "look: a whole-picture style (dither, halftone, riso, pixel, thermal, duotone, xray); none keeps it clean. Avoid it for readable explainers.",
+      "transition: ring, zoom, slide, flash, glitch, wipe, spin, blinds, iris, whip, burn, pixels. Use one that fits the energy; whip and pixels suit fast comedy and explainers.",
+      "camera: push, drift, shake, still, zoomout, orbit, pulse, handheld, dutch, breathe, punch (bumps the zoom on each emphasised word).",
+      "particles: none, sparkles, confetti, bokeh, rain, snow, stars, embers, matrix, dust, flow, squares.",
+      "switches: crt and vhs are retro; scratch is silent film; bars is cinema; vignette, leak, shine, glow, grain, chroma, scanlines are finishing touches; alternate swaps light and dark every scene; outline puts a black outline on captions (use it over busy footage or clips).",
+    ].join("\n"),
+  });
+
+  const REFS = new Map(); // script id -> frames of a reference video (not saved)
   const planFor = (sc) => {
     const vo = VO.get(sc.id);
     return RV.plan(sc, {
+      clips: clipPlanFor(sc),
       handle: handle(),
       wps: wps(sc),
       audioDuration: vo ? vo.duration : 0,
@@ -1659,6 +1839,17 @@
           : "Not started";
   }
   function viewProduction() {
+    const sc0 = active();
+    if (S.format === "humour" && !sc0.humour) {
+      /* Cartoon humour: set its look and put your clips behind the lines the first time */
+      applyHumour(sc0);
+      save();
+      assignClips(sc0)
+        .then(() => ensureClips(sc0))
+        .then(() => {
+          if (onStage("production")) viewProduction();
+        });
+    }
     const sc = active(),
       P = sc.prod,
       vo = VO.get(sc.id),
@@ -1725,9 +1916,31 @@
         ${seg("layout", "Caption position")}${seg("mark", "Emphasis")}${seg("annot", "Annotations")}${seg("orbit", "Orbit")}${speedRow()}${seg("look", "Film look")}${seg("caption", "Captions")}${seg("transition", "Transitions")}${seg("camera", "Camera")}${seg("particles", "Particles")}
         <div class="switches">${RV.SWITCHES.map(([k, l]) => sw(k, l)).join("")}</div>
       </section>
+      <section class="panel clipspanel">
+        <div class="ph"><h3>${svg("film2", 17)} Video clips</h3><div class="row"><button type="button" class="btn sm" id="clipsManage">Manage clips (${clipMetas().length})</button><button type="button" class="btn sm primary" id="clipsMatch" ${dis}>${svg("sparkles", 14)} Match scenes</button></div></div>
+        <p class="muted small">${clipMetas().length ? (sc.clips && sc.clips.some(Boolean) ? `Your clips play behind the lines${sc.clipsBy ? " (matched by " + sc.clipsBy + ")" : ""}. Change any scene below.` : "Press Match scenes and Studio puts a clip behind each line.") : "Add your cartoon videos and Studio puts them behind your script, with captions and graphics on top."}</p>
+        ${
+          sc.clips && sc.clips.some(Boolean)
+            ? `<div class="clipscenes">${sc.blocks
+                .map((b, i) =>
+                  b.text.trim()
+                    ? `<div class="clipscene"><span>${esc(b.text.length > 46 ? b.text.slice(0, 46) + "…" : b.text)}</span><select data-clipsel="${i}" ${dis}><option value="">No clip</option>${clipMetas()
+                        .map(
+                          (c) =>
+                            `<option value="${esc(c.id)}" ${sc.clips[i] && sc.clips[i].clip === c.id ? "selected" : ""}>${esc(c.name)} · ${esc(c.setting)}</option>`,
+                        )
+                        .join("")}</select></div>`
+                    : "",
+                )
+                .join("")}</div>`
+            : ""
+        }
+      </section>
       <section class="panel director">
         <div class="ph"><h3>${svg("wand", 17)} AI director</h3>${ai ? `<button type="button" class="btn primary" id="direct" ${dis}>${svg("sparkles", 16)} Direct with Claude</button>` : `<button type="button" class="btn" id="direct">${svg("key", 16)} Connect Claude</button>`}</div>
         <p class="muted">${ai ? "Claude reads your script and picks an icon and highlighted words for every scene, plus the style, pace and effects." : "Without Claude connected, Studio still picks icons from keywords. Connect Claude (sign in with your account, or add an API key) and it directs every scene, imports scripts from reels and writes new ones from your best performers."}</p>
+        <div class="refrow"><label class="btn sm filebtn">${svg("film2", 14)} ${REFS.has(sc.id) || sc.refNote ? "Replace reference video" : "Add a reference video"}<input type="file" id="refFile" accept="video/*" hidden ${dis}></label>${REFS.has(sc.id) || sc.refNote ? `<span class="chip">${esc(sc.refName || "reference")}</span><button type="button" class="linkbtn danger" id="refClear">Remove</button>` : '<span class="muted small">Claude watches it and matches its motion and look.</span>'}</div>
+        ${sc.styleNote ? `<p class="small okline">${svg("sparkles", 14)} ${esc(sc.styleNote)}</p>` : ""}
         ${sc.dir.some((d) => d && (d.motif || (d.emphasis && d.emphasis.length))) ? `<p class="small okline">${svg("check", 14)} Directed by Claude: ${sc.dir.filter((d) => d && d.motif && d.motif !== "none").length} icons, ${sc.dir.reduce((n, d) => n + ((d && d.emphasis && d.emphasis.length) || 0), 0)} highlighted words.</p>` : ""}
       </section>
       ${voicePanel(sc, vo, dis)}
@@ -1788,6 +2001,60 @@
             sc.style.fx[i.dataset.fxsw] = i.checked;
           })),
     );
+    $("#clipsManage").onclick = openClips;
+    $("#clipsMatch").onclick = async (e) => {
+      if (!clipMetas().length) {
+        openClips();
+        return;
+      }
+      busy(e.currentTarget, true, "Matching…");
+      await assignClips(sc);
+      await ensureClips(sc);
+      viewProduction();
+    };
+    $$("[data-clipsel]").forEach(
+      (b) =>
+        (b.onchange = async () => {
+          sc.clips = sc.clips || [];
+          sc.clips[+b.dataset.clipsel] = b.value
+            ? { clip: b.value, start: 0 }
+            : null;
+          sc.clipsBy = "you";
+          invalidate(sc);
+          save();
+          await ensureClips(sc);
+          viewProduction();
+        }),
+    );
+    ensureClips(sc).then((fresh) => {
+      if (fresh && onStage("production")) viewProduction();
+    });
+    const rf = $("#refFile");
+    if (rf)
+      rf.onchange = async (e) => {
+        const f = e.target.files[0];
+        e.target.value = "";
+        if (!f) return;
+        toast("Reading the reference video…");
+        try {
+          const r = await Frames.cut(f, { keep: 8 });
+          REFS.set(sc.id, r.frames);
+          sc.refName = f.name.slice(0, 40);
+          save();
+          viewProduction();
+        } catch (err) {
+          toast(err.message);
+        }
+      };
+    const rc = $("#refClear");
+    if (rc)
+      rc.onclick = () => {
+        REFS.delete(sc.id);
+        sc.refName = "";
+        sc.refNote = "";
+        save();
+        viewProduction();
+      };
     $$("#fxSpeed [data-speed]").forEach(
       (b) =>
         (b.onclick = () =>
@@ -1822,11 +2089,20 @@
       const btn = e.currentTarget;
       busy(btn, true, "Claude is directing…");
       try {
+        const useClips =
+          S.format === "humour" || (sc.clips && sc.clips.some(Boolean));
+        await ClipStore.list();
         const d = await AI.direct({
           title: sc.title,
           blocks: sc.blocks,
           themes: fmtThemes().map((t) => t.name),
           fx: RV.FX_OPTIONS,
+          catalog: DIRECTOR_CATALOG(),
+          presets: Object.keys(RV.PRESETS),
+          format: RV.formatById(S.format).name,
+          clips: useClips ? clipMetas().map(clipUse) : null,
+          frames: REFS.get(sc.id) || null,
+          refNote: sc.refNote || "",
         });
         sc.dir = sc.blocks.map((b, i) => {
           const s = d.scenes[i] || {};
@@ -1837,18 +2113,43 @@
                 ? "none"
                 : null,
             emphasis: Array.isArray(s.emphasis)
-              ? s.emphasis.slice(0, 3).map(String)
+              ? s.emphasis
+                  .slice(0, 3)
+                  .flatMap((w) => String(w).split(/\s+/))
+                  .filter(Boolean)
+                  .slice(0, 5)
               : [],
           };
         });
+        if (useClips && clipMetas().length) {
+          sc.clips = sc.blocks.map((b, i) => {
+            const s = d.scenes[i] || {};
+            return b.text.trim() && clipMetas().some((c) => c.id === s.clip)
+              ? { clip: s.clip, start: Math.max(0, +s.start || 0) }
+              : null;
+          });
+          if (!sc.clips.some(Boolean)) await assignClips(sc);
+          else sc.clipsBy = "Claude";
+        }
         if (themeByName(d.theme)) sc.style.theme = d.theme;
         if (PACES[d.pace]) sc.style.pace = d.pace;
         Object.entries(d.fx || {}).forEach(([k, val]) => {
           if (RV.FX_OPTIONS[k] && RV.FX_OPTIONS[k].includes(val))
             sc.style.fx[k] = val;
         });
+        if (d.switches && d.switches.length) {
+          const on = new Set(d.switches);
+          RV.SWITCHES.forEach(([k]) => {
+            if (k !== "motifs" && k !== "clips") sc.style.fx[k] = on.has(k);
+          });
+        }
+        if (d.styleNote) {
+          sc.styleNote = d.styleNote;
+          if (REFS.has(sc.id)) sc.refNote = d.styleNote; // later runs keep matching it without the frames
+        }
         invalidate(sc);
         save();
+        await ensureClips(sc);
         toast("Claude directed the video");
         viewProduction();
       } catch (err) {
@@ -3737,6 +4038,179 @@
     renderVoiceState();
     if (onStage("production")) viewProduction();
   };
+
+  /* ---------- the clip library dialog ---------- */
+  const clipd = $("#clipsDialog");
+  const clipMsg = (t, k) => noteTo("#clipMsg", t, k);
+  async function renderClips() {
+    const list = await ClipStore.list();
+    $("#clipList").innerHTML = list.length
+      ? list
+          .map(
+            (c) => `<div class="clip" data-id="${esc(c.id)}">
+      <img src="${esc(c.thumb)}" alt="" class="clipthumb">
+      <div class="clipbody">
+        <div class="cliphead"><b>${esc(c.name)}</b><span class="muted small">${c.duration}s${c.trimStart ? ` · first ${c.trimStart}s skipped` : ""}${c.trimEnd ? ` · last ${c.trimEnd}s skipped` : ""}${c.analysed ? " · tagged by Claude" : ""}</span><span class="spacer"></span><button type="button" class="linkbtn" data-clipai="${esc(c.id)}" style="margin:0">Tag with Claude</button><button type="button" class="linkbtn danger" data-clipdel="${esc(c.id)}" style="margin:0">Remove</button></div>
+        <div class="row">
+          <label>Setting <select data-clipf="setting">${ClipStore.SETTINGS.map((s) => `<option ${s === c.setting ? "selected" : ""}>${s}</option>`).join("")}</select></label>
+          <label>Characters <select data-clipf="pose">${ClipStore.POSES.map((s) => `<option ${s === c.pose ? "selected" : ""}>${s}</option>`).join("")}</select></label>
+          <label>Skip first (s) <input data-clipf="trimStart" type="number" min="0" max="${Math.max(0, Math.floor(c.duration - 2))}" step="0.5" value="${c.trimStart || 0}" style="width:72px"></label>
+          <label>Skip last (s) <input data-clipf="trimEnd" type="number" min="0" max="${Math.max(0, Math.floor(c.duration - 2))}" step="0.5" value="${c.trimEnd || 0}" style="width:72px"></label>
+        </div>
+        <input data-clipf="desc" type="text" maxlength="240" value="${esc(c.desc || "")}" placeholder="What is happening? (Claude can write this)" aria-label="Description">
+      </div></div>`,
+          )
+          .join("")
+      : '<p class="muted small">No clips yet. Add some above.</p>';
+    $$("#clipList [data-clipf]").forEach(
+      (el) =>
+        (el.onchange = async () => {
+          const id = el.closest(".clip").dataset.id,
+            f = el.dataset.clipf;
+          await ClipStore.update(id, {
+            [f]:
+              f === "trimEnd" || f === "trimStart"
+                ? Math.max(0, +el.value || 0)
+                : el.value,
+          });
+        }),
+    );
+    $$("#clipList [data-clipdel]").forEach(
+      (b) =>
+        (b.onclick = async () => {
+          if (!confirm("Remove this clip from the library?")) return;
+          await ClipStore.remove(b.dataset.clipdel);
+          S.scripts.forEach((sc) => {
+            if (sc.clips)
+              sc.clips = sc.clips.map((x) =>
+                x && x.clip === b.dataset.clipdel ? null : x,
+              );
+          });
+          save();
+          renderClips();
+        }),
+    );
+    $$("#clipList [data-clipai]").forEach(
+      (b) => (b.onclick = () => analyseOne(b.dataset.clipai, b)),
+    );
+  }
+  async function analyseOne(id, btn) {
+    if (!AI.configured()) {
+      clipd.close();
+      openApi();
+      return false;
+    }
+    const m = clipMetas().find((c) => c.id === id);
+    if (!m) return false;
+    if (btn) busy(btn, true, "Watching…");
+    try {
+      const blob = await ClipStore.blob(id),
+        r = await Frames.cut(blob, { keep: 8 }),
+        o = await AI.analyseClip({
+          frames: r.frames,
+          name: m.name,
+          duration: m.duration,
+          settings: ClipStore.SETTINGS,
+          poses: ClipStore.POSES,
+        });
+      await ClipStore.update(id, {
+        setting: o.setting,
+        pose: o.pose,
+        desc: o.desc,
+        tags: o.tags,
+        mood: o.mood,
+        trimEnd: o.trimEnd || m.trimEnd,
+        trimStart: o.trimStart || m.trimStart,
+        analysed: true,
+      });
+      return true;
+    } catch (err) {
+      clipMsg(`${m.name}: ${err.message}`, "bad");
+      return false;
+    } finally {
+      if (btn) busy(btn, false);
+    }
+  }
+  async function addClipFiles(files) {
+    clipMsg("");
+    let added = 0;
+    for (const f of files) {
+      try {
+        clipMsg(`Adding ${f.name}…`);
+        await ClipStore.add(f);
+        added++;
+        await renderClips();
+      } catch (err) {
+        clipMsg(err.message, "bad");
+      }
+    }
+    if (added)
+      clipMsg(
+        `${added} clip${added === 1 ? "" : "s"} added. Press “Let Claude tag every clip” to fill in the places and what happens.`,
+        "ok",
+      );
+  }
+  function openClips() {
+    [dlg, apid, impd, gend, igd, kbd].forEach((d) => {
+      if (d.open) d.close();
+    });
+    clipMsg("");
+    renderClips();
+    clipd.showModal();
+  }
+  $("#clipFile").onchange = (e) => {
+    addClipFiles([...e.target.files]);
+    e.target.value = "";
+  };
+  (() => {
+    const dz = $("#clipDrop");
+    ["dragenter", "dragover"].forEach((ev) =>
+      dz.addEventListener(ev, (e) => {
+        e.preventDefault();
+        dz.classList.add("over");
+      }),
+    );
+    ["dragleave", "drop"].forEach((ev) =>
+      dz.addEventListener(ev, (e) => {
+        e.preventDefault();
+        dz.classList.remove("over");
+      }),
+    );
+    dz.addEventListener("drop", (e) =>
+      addClipFiles(
+        [...e.dataTransfer.files].filter(
+          (f) =>
+            /^video\//.test(f.type) || /\.(mp4|mov|webm|m4v)$/i.test(f.name),
+        ),
+      ),
+    );
+  })();
+  $("#clipAnalyse").onclick = async (e) => {
+    const btn = e.currentTarget,
+      list = await ClipStore.list();
+    if (!list.length) {
+      clipMsg("Add some clips first.", "bad");
+      return;
+    }
+    if (!AI.configured()) {
+      clipd.close();
+      openApi();
+      return;
+    }
+    busy(btn, true, "Claude is watching…");
+    let ok = 0;
+    for (let i = 0; i < list.length; i++) {
+      clipMsg(`Watching ${list[i].name} (${i + 1} of ${list.length})…`);
+      if (await analyseOne(list[i].id)) ok++;
+      await renderClips();
+    }
+    clipMsg(`Tagged ${ok} of ${list.length} clips.`, ok ? "ok" : "bad");
+    busy(btn, false);
+  };
+  clipd.addEventListener("close", () => {
+    if (onStage("production")) viewProduction();
+  });
+  ClipStore.list().catch(() => {});
 
   /* Instagram insights, signed in through Composio */
   const igd = $("#igDialog");

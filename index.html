@@ -453,6 +453,32 @@
       </form>
     </dialog>
 
+    <dialog id="clipsDialog">
+      <form method="dialog" class="dlg wide">
+        <h3>Cartoon clips</h3>
+        <p class="muted">
+          Add your cartoon videos (people sitting or standing at the beach, the
+          metro, a bus stand, an interview window…). When the format is
+          <b>Cartoon humour</b>, Studio puts the right clip behind each line of
+          your script and adds captions and graphics on top. Clips stay in this
+          browser. Claude can watch each one and tag it for you.
+        </p>
+        <label class="dropzone" id="clipDrop">
+          <input type="file" id="clipFile" accept="video/*" multiple hidden />
+          <span class="dzicon" aria-hidden="true">⬆</span>
+          <span>Drop videos here, or choose files</span>
+        </label>
+        <p class="note" id="clipMsg" role="status"></p>
+        <div id="clipList" class="cliplist"></div>
+        <div class="row end">
+          <button value="cancel" class="btn ghost">Close</button>
+          <button type="button" class="btn primary" id="clipAnalyse">
+            Let Claude tag every clip
+          </button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="genDialog">
       <form method="dialog" class="dlg">
         <h3>Make one like this</h3>
@@ -487,6 +513,7 @@
     <script src="post.js"></script>
     <script src="video.js"></script>
     <script src="instagram.js"></script>
+    <script src="clips.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

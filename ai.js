@@ -373,28 +373,127 @@ ${String(text).slice(0, 6000)}`,
   }
 
   /** Choose icons, emphasis words, style and effects for each scene. */
-  async function direct({ title, blocks, themes, fx }) {
-    const scenes = blocks
-      .map((b, i) => `${i}. [${b.type}] ${b.text}`)
+  /** Watch a cartoon clip (a handful of frames) and describe it so scenes can be matched to it. */
+  async function analyseClip({ frames, name, duration, settings, poses }) {
+    const j = await askVision({
+      json: true,
+      max: 900,
+      images: frames.map((f) => f.jpeg),
+      system:
+        "You describe cartoon video clips for a video editor. You reply with only a JSON object, no prose and no code fences.",
+      user: `These ${frames.length} frames come from a cartoon clip called "${name}", ${Math.round(duration)} seconds long, in time order. Frame times in seconds: ${frames.map((f) => f.t).join(", ")}.
+Describe it for an editor who will pick it as footage for a script.
+- "setting": one of ${settings.join(" | ")}.
+- "pose": what the characters mostly do, one of ${poses.join(" | ")}.
+- "desc": one sentence: who is there, where, what the joke or situation is. No quotes of on-screen captions.
+- "tags": 4 to 8 lowercase keywords an editor might search for (place, objects, mood, topic such as visa, documents, interview, refund).
+- "mood": one word (funny, tense, calm, awkward…).
+- "hasEndCard": true if the last frames are a logo or call-to-action card instead of the cartoon scene, else false.
+- "endCardStart": if hasEndCard, the second where that card starts (use the frame times), else 0.
+- "titleUntil": if a big title or caption is burnt into the top of the first frames, the second where it disappears (use the frame times), else 0.
+Return {"setting":"...","pose":"...","desc":"...","tags":["..."],"mood":"...","hasEndCard":false,"endCardStart":0,"titleUntil":0}.`,
+    });
+    return {
+      setting: settings.includes(j.setting) ? j.setting : "other",
+      pose: poses.includes(j.pose) ? j.pose : "mixed",
+      desc: String(j.desc || "").slice(0, 240),
+      tags: arr(j.tags)
+        .map((t) => String(t).toLowerCase().slice(0, 24))
+        .slice(0, 8),
+      mood: String(j.mood || "").slice(0, 20),
+      trimStart:
+        Number(j.titleUntil) > 0 && Number(j.titleUntil) < duration / 2
+          ? Math.round(Number(j.titleUntil) * 10) / 10
+          : 0,
+      trimEnd:
+        j.hasEndCard &&
+        Number(j.endCardStart) > 1 &&
+        Number(j.endCardStart) < duration
+          ? Math.round((duration - Number(j.endCardStart)) * 10) / 10
+          : 0,
+    };
+  }
+  /** Choose which clip each scene should show, and where in the clip to start. */
+  async function pickClips({ scenes, clips, title }) {
+    const lib = clips
+      .map(
+        (c) =>
+          `- id ${c.id}: "${c.name}" · setting ${c.setting} · characters ${c.pose} · ${Math.round(c.usable)} s usable · ${c.desc || "no description"} · tags ${(c.tags || []).join(", ")}`,
+      )
       .join("\n");
     const j = await ask({
       json: true,
-      max: 1200,
+      max: 900 + scenes.length * 60,
       system: SYS,
-      user: `Direct the visuals for this short video titled "${title}".
-For each scene pick ONE icon that matches its meaning from: ${MOTIFS.join(", ")} (or "none"), and 1 to 3 emphasis words that should be highlighted. Then pick the overall look.
-Allowed themes: ${themes.join(" | ")}
-Allowed pace: Calm | Balanced | Punchy
-Allowed effects: ${JSON.stringify(fx)}
+      user: `You are the editor of a funny cartoon short titled "${title}". Pick the cartoon clip that should play behind each scene of the script. Match the place and situation the line talks about (beach, metro, street or bus stand, interview window, court, kitchen…). Use different clips for neighbouring scenes when the library allows it, but keep a joke's setup and punchline in the same clip. "start" is the second of the clip to start from (between 0 and its usable length minus 2).
+CLIP LIBRARY:
+${lib}
 SCENES:
-${scenes}
-Return {"scenes":[{"motif":"...","emphasis":["..."]}], "theme":"...", "pace":"...", "fx":{"caption":"...","transition":"...","camera":"...","particles":"..."}} with exactly ${blocks.length} scenes in order.`,
+${scenes.map((t, i) => `${i}. ${t}`).join("\n")}
+Return {"scenes":[{"clip":"<id>","start":0,"why":"..."}]} with exactly ${scenes.length} entries in order.`,
     });
+    return (Array.isArray(j.scenes) ? j.scenes : []).map((x) => ({
+      clip: String((x && x.clip) || ""),
+      start: Math.max(0, Number(x && x.start) || 0),
+      why: String((x && x.why) || "").slice(0, 120),
+    }));
+  }
+
+  /** The director: reads the script, and optionally a reference video and the clip library, and sets the whole look.
+   * `catalog` describes every effect so Claude can use all of them. */
+  async function direct({
+    title,
+    blocks,
+    themes,
+    fx,
+    catalog,
+    presets,
+    format,
+    clips,
+    frames,
+    refNote,
+  }) {
+    const scenes = blocks
+      .map((b, i) => `${i}. [${b.type}] ${b.text}`)
+      .join("\n");
+    const lib =
+      clips && clips.length
+        ? "CARTOON CLIPS the video can show behind the scenes:\n" +
+          clips
+            .map(
+              (c) =>
+                `- id ${c.id}: ${c.setting} · ${c.pose} · ${Math.round(c.usable)} s · ${c.desc || c.name} · ${(c.tags || []).join(", ")}`,
+            )
+            .join("\n") +
+          "\n"
+        : "";
+    const body = `Direct the visuals for this short vertical video titled "${title}"${format ? ` (format: ${format})` : ""}.
+You are the art director and motion designer. Choose a coherent look; do not pick randomly. Make the hook land hardest, keep the middle varied but consistent, and make the last scene feel like a call to action.
+${frames && frames.length ? `A REFERENCE VIDEO is shown as ${frames.length} frames in time order${refNote ? " (" + refNote + ")" : ""}. Match its motion style: where the caption sits, how words are emphasised, what graphics move, how scenes change, the colours, light or dark. Describe what you matched in "styleNote".\n` : ""}${refNote && !(frames && frames.length) ? "STYLE NOTE FROM A REFERENCE VIDEO TO MATCH: " + refNote + "\n" : ""}
+PER SCENE give: "motif" (an icon from ${catalog.motifs.join(", ")} or "none"), "emphasis" (1 to 3 words from that scene's text to mark), ${clips && clips.length ? `"clip" (a clip id from the library, matching the place the line talks about) and "start" (second to start from), ` : ""}and "why" (a few words).
+OVERALL give: "theme" (one of ${themes.join(" | ")}), "pace" (Calm | Balanced | Punchy), "fx" using only these allowed values: ${JSON.stringify(fx)}, and "switches": the on/off effects to turn ON from ${catalog.switches.join(", ")} (the rest stay off).
+Notes on the effects:
+${catalog.notes}
+${presets && presets.length ? "Ready-made presets (you may start from one, then adjust): " + presets.join(", ") + ".\n" : ""}${lib}SCENES:
+${scenes}
+Return {"scenes":[{"motif":"...","emphasis":["..."],"clip":"","start":0,"why":"..."}],"theme":"...","pace":"...","fx":{"caption":"...","transition":"...","camera":"...","particles":"...","layout":"...","mark":"...","annot":"...","orbit":"...","look":"..."},"switches":["..."],"styleNote":"one or two sentences on the look you chose and why"} with exactly ${blocks.length} scenes in order.`;
+    const j =
+      frames && frames.length
+        ? await askVision({
+            json: true,
+            max: 2200,
+            images: frames.map((f) => f.jpeg),
+            system: SYS,
+            user: body,
+          })
+        : await ask({ json: true, max: 2200, system: SYS, user: body });
     return {
       scenes: Array.isArray(j.scenes) ? j.scenes : [],
       theme: j.theme,
       pace: j.pace,
       fx: j.fx || {},
+      switches: Array.isArray(j.switches) ? j.switches.map(String) : [],
+      styleNote: String(j.styleNote || "").slice(0, 400),
     };
   }
 
@@ -540,6 +639,8 @@ Return {"title":"...","hook":"...","body":["..."],"comment":"...","breakdown":[{
     fromKnowledge,
     autoScripts,
     direct,
+    analyseClip,
+    pickClips,
     fromReference,
     reelToScript,
     test,
