@@ -229,4 +229,40 @@ ok(
     assert.strictEqual(T.rank(arms.theme, ["A", "B", "C"])[0].option, "B");
   },
 );
+ok("hook patterns are recognised from the line", () => {
+  const cases = [
+    ["Why do 1 in 6 Schengen applications get refused?", "question"],
+    ["Germany vs Canada: which is cheaper?", "versus"],
+    ["57% of clients never got a status update.", "stat"],
+    ["Stop sending your visa file before checking this.", "mistake"],
+    ["Nobody tells you the secret behind refusals.", "secret"],
+    ["How to check your visa file in 5 minutes", "promise"],
+    ["If you send staff to Europe, read this.", "direct"],
+    ["Meera sent her documents on Monday and heard nothing.", "story"],
+    ["3 documents that decide your visa", "number"],
+  ];
+  cases.forEach(([text, want]) => assert.strictEqual(T.hookPattern(text), want, text));
+});
+ok("hook scores prefer short, concrete lines about the viewer over filler", () => {
+  const good = T.scoreHook("3 mistakes that get your visa refused");
+  const filler = T.scoreHook("So today in this video we are going to talk about a really amazing visa thing that many people ask about all the time");
+  assert.ok(good > filler + 20, `${good} vs ${filler}`);
+  const lifted = T.scoreHook("3 mistakes that get your visa refused", [{ key: "number", lift: 3 }]);
+  assert.ok(lifted >= good);
+  assert.ok(T.scoreHook("x") >= 0 && T.scoreHook("x") <= 100);
+});
+ok("pattern picking follows results but keeps exploring", () => {
+  const arms = {};
+  for (let i = 0; i < 30; i++) {
+    T.learn(arms, { hook: "question" }, 0.9);
+    T.learn(arms, { hook: "number" }, 0.8);
+    T.learn(arms, { hook: "story" }, 0.1);
+  }
+  const picks = T.pickPatterns(arms.hook, 3);
+  assert.strictEqual(picks.length, 3);
+  assert.strictEqual(picks[0].id, "question");
+  assert.ok(picks.some((p) => p.n <= 1), "one pattern should be one the creator has barely tried");
+  assert.ok(picks.every((p) => p.label && p.guide && p.example));
+  assert.strictEqual(T.pickPatterns({}, 1).length, 1);
+});
 console.log(`\n${n} passed`);

@@ -230,6 +230,159 @@
       })
       .sort((x, y) => y.score - x.score);
   }
+
+  /* ---------- hook patterns: the shapes a hook can take, so the learning loop can find which ones win ---------- */
+  const HOOK_PATTERNS = [
+    {
+      id: "number",
+      label: "Number-led",
+      guide: "Open with a specific number or result that the notes support.",
+      example: "I compared 7 visa agencies. Only 2 gave straight answers.",
+    },
+    {
+      id: "question",
+      label: "Question",
+      guide: "Ask the question the viewer is already asking themselves.",
+      example: "Why do 1 in 6 Schengen applications get refused?",
+    },
+    {
+      id: "mistake",
+      label: "Mistake or warning",
+      guide: "Warn about one costly mistake and hint at the fix.",
+      example: "Stop sending your visa file before checking this one page.",
+    },
+    {
+      id: "contrarian",
+      label: "Contrarian",
+      guide: "Challenge a belief most people in the niche hold.",
+      example: "The cheapest country to study in is not the one you think.",
+    },
+    {
+      id: "secret",
+      label: "Insider secret",
+      guide: "Promise something the usual providers do not say out loud.",
+      example: "Your agency will not tell you why files really get refused.",
+    },
+    {
+      id: "story",
+      label: "Mini story",
+      guide:
+        "Drop into the middle of a very short story: a person, a stake, a twist.",
+      example:
+        "Meera sent her documents on Monday. By Friday she still had no update.",
+    },
+    {
+      id: "promise",
+      label: "How-to promise",
+      guide: "Promise a clear outcome in a short time.",
+      example: "How to check your visa file in five minutes.",
+    },
+    {
+      id: "versus",
+      label: "Comparison",
+      guide: "Put two options head to head.",
+      example: "Germany or Canada: which one really costs less?",
+    },
+    {
+      id: "stat",
+      label: "Shock stat",
+      guide: "Lead with one surprising figure and what it means.",
+      example: "57% of visa clients said they never got a status update.",
+    },
+    {
+      id: "direct",
+      label: "Direct callout",
+      guide: "Call out exactly who this is for.",
+      example: "If you send staff to Europe, read this before the next trip.",
+    },
+  ];
+  const PATTERN_IDS = HOOK_PATTERNS.map((p) => p.id);
+  /** Which pattern a hook line follows (a rule of thumb, good enough to count wins per shape). */
+  function hookPattern(text) {
+    const t = String(text || "").trim(),
+      w = words(t);
+    if (!t) return "direct";
+    if (/\bvs\.?\b|\bversus\b|\bor\b[^?]*\?/i.test(t)) return "versus";
+    if (/^how to\b|\bin \d+ (minutes|days|steps|seconds)\b|^how i\b/i.test(t))
+      return "promise";
+    if (
+      /\?\s*$/.test(t) ||
+      /^(why|how|what|which|is|are|do|does|can|should|will)\b/i.test(t)
+    )
+      return "question";
+    if (/\d+\s?%|\b\d+\s+(out of|in)\s+\d+\b|\b1 in \d+\b/i.test(t))
+      return "stat";
+    if (/\b(stop|don'?t|never|mistake|avoid|warning|careful)\b/i.test(t))
+      return "mistake";
+    if (
+      /\b(secret|won'?t tell|nobody tells|hidden|truth about|insider)\b/i.test(
+        t,
+      )
+    )
+      return "secret";
+    if (
+      /\b(isn'?t|not what you think|myth|overrated|wrong about|actually)\b/i.test(
+        t,
+      )
+    )
+      return "contrarian";
+    if (
+      /^if you('| a)?(re)?\b|^(hr|founders?|students?|parents?|agents?|managers?)\b/i.test(
+        t,
+      )
+    )
+      return "direct";
+    if (
+      /^[A-Z][a-z]+ (sent|booked|applied|got|lost|asked|paid|called|wrote)\b/.test(
+        t,
+      )
+    )
+      return "story";
+    if (/\d/.test(t)) return "number";
+    return w.length <= 9 ? "direct" : "story";
+  }
+  /** A quick quality score (0 to 100) for a hook line: short, concrete, about "you", and the traits that earned lift for this creator. */
+  function scoreHook(text, lift) {
+    const t = String(text || "").trim(),
+      w = words(t),
+      f = hookFeatures(t);
+    let s = 50;
+    if (w.length >= 4 && w.length <= 11) s += 14;
+    else if (w.length > 14) s -= 16;
+    else if (w.length < 4) s -= 10;
+    if (f.number) s += 8;
+    if (f.you) s += 6;
+    if (f.question) s += 3;
+    if (f.dollar) s += 3;
+    if (f.negative) s += 3;
+    if (/^(so|hey|hi|today|in this video|welcome)\b/i.test(t)) s -= 14;
+    if (
+      /[!]{2,}|\b(amazing|incredible|unbelievable|game.?changer|revolutionary)\b/i.test(
+        t,
+      )
+    )
+      s -= 8;
+    (lift || []).forEach((x) => {
+      if (f[x.key] && x.lift > 0) s += clamp(Math.log(x.lift) * 14, -10, 10);
+    });
+    return clamp(Math.round(s), 0, 100);
+  }
+  /** Choose which hook patterns to write: the best-scoring ones by the bandit, plus one the creator has barely tried. */
+  function pickPatterns(armsHook, k) {
+    const ranked = rank(armsHook, PATTERN_IDS),
+      chosen = ranked.slice(0, Math.max(1, k));
+    if (k >= 2) {
+      const unexplored = ranked.filter((r) => r.n <= 1 && !chosen.includes(r));
+      if (unexplored.length) chosen[chosen.length - 1] = unexplored[0];
+    }
+    return chosen.map((r) =>
+      Object.assign(
+        {},
+        HOOK_PATTERNS.find((p) => p.id === r.option),
+        { mean: r.mean, n: r.n },
+      ),
+    );
+  }
   const totalResults = (arms) =>
     Object.values((arms && arms.theme) || {}).reduce((a, x) => a + x.n, 0);
 
@@ -252,6 +405,10 @@
     rank,
     totalResults,
     CTA,
+    HOOK_PATTERNS,
+    hookPattern,
+    scoreHook,
+    pickPatterns,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   else window.Tools = API;

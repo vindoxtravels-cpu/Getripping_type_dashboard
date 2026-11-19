@@ -273,6 +273,51 @@
     "You are a short-form video scriptwriter. You reply with only a JSON object, no prose and no code fences.";
 
   /** Turn a caption or transcript into a fresh script in the creator's own words. */
+  /** Scripts written by itself from what has worked: each one follows a hook pattern chosen by the learning loop and comes with
+   * several candidate hooks. `plan` = [{ id, label, guide, example }], one per script. */
+  async function autoScripts({
+    niche,
+    docs,
+    brand,
+    topic,
+    plan,
+    winners,
+    avoid,
+  }) {
+    const notes = (docs || [])
+      .map(
+        (d, i) =>
+          `### Note ${i + 1}: ${d.title}\n${String(d.text).slice(0, 6000)}`,
+      )
+      .join("\n\n")
+      .slice(0, 20000);
+    const n = plan.length;
+    const j = await ask({
+      json: true,
+      max: Math.min(4000, 900 * n + 500),
+      system: SYS,
+      user: `Write ${n} different spoken scripts for short vertical videos${niche ? " for " + niche : ""}.
+${notes ? "Use ONLY the facts in the knowledge base below. Never invent prices, statistics, names, dates or guarantees that are not in the notes; if a number is missing, write the idea without a number.\n" : "There are no notes, so write evergreen, useful advice and do not state any statistic, price or guarantee as a fact.\n"}${brand && brand.audience ? "Audience: " + brand.audience + "\n" : ""}${brand && brand.tone ? "Tone: " + brand.tone + "\n" : ""}${topic ? "Focus on this idea or angle: " + topic + "\n" : ""}
+HOOK PATTERNS, one per script (the hook is the most important line, because it decides whether people keep watching):
+${plan.map((p, i) => `Script ${i + 1}: ${p.label}. ${p.guide} Shape, not wording: "${p.example}"`).join("\n")}
+${winners && winners.length ? "Hooks that earned this creator the most engagement (learn what they have in common; never copy them):\n" + winners.map((h) => "- " + h).join("\n") + "\n" : ""}${avoid && avoid.length ? "Do not repeat or closely resemble these recent hooks:\n" + avoid.map((h) => "- " + h).join("\n") + "\n" : ""}
+Rules: for each script give FIVE different candidate hooks, all following that script's pattern, each ONE line under 12 words, concrete, spoken, about the viewer, no filler such as "Hey" or "Today". Body: 4 to 7 lines, each ONE idea under 20 words, building on the strongest hook. End with one comment call-to-action line (for example: Comment "GUIDE" and follow for more). Plain text only, no emojis or hashtags.
+Return {"scripts": [{"title": "...", "hooks": ["...","...","...","...","..."], "body": ["..."], "comment": "..."}]}.
+${notes ? "\nKNOWLEDGE BASE:\n" + notes : ""}`,
+    });
+    const list = (Array.isArray(j.scripts) ? j.scripts : []).filter(
+      (x) => x && (arr(x.hooks).length || x.hook),
+    );
+    if (!list.length)
+      throw new AIError("Claude did not return any scripts. Try again.");
+    return list.slice(0, n).map((x, i) => ({
+      pattern: plan[i].id,
+      title: String(x.title || "").trim(),
+      hooks: arr(x.hooks).length ? arr(x.hooks) : [String(x.hook).trim()],
+      body: arr(x.body),
+      comment: String(x.comment || "").trim(),
+    }));
+  }
   /** Scripts written only from the user's own notes (their knowledge base). Resolves an array of { title, hook, body, comment }. */
   async function fromKnowledge({ docs, brand, topic, count, niche }) {
     const notes = docs
@@ -493,6 +538,7 @@ Return {"title":"...","hook":"...","body":["..."],"comment":"...","breakdown":[{
     askVision,
     scriptFromText,
     fromKnowledge,
+    autoScripts,
     direct,
     fromReference,
     reelToScript,

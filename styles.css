@@ -3481,3 +3481,21 @@ pre.code {
 .filebtn {
   cursor: pointer;
 }
+
+.hookalts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+.hookalts .altlist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hookalts .btnchip {
+  text-align: left;
+  max-width: 100%;
+  white-space: normal;
+  cursor: pointer;
+}

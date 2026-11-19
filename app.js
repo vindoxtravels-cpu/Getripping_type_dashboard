@@ -564,7 +564,38 @@
     pace: sc.style.pace,
     caption: sc.style.fx.caption,
     transition: sc.style.fx.transition,
+    hook:
+      sc.pattern ||
+      Tools.hookPattern((sc.blocks[0] && sc.blocks[0].text) || ""),
   });
+  /** Learn which hook patterns win from the reels already on your account (each reel counts once). */
+  function learnFromReels() {
+    const reels = liveReels().filter(
+      (r) => (r.views || r.reach) > 0 && r.caption,
+    );
+    if (reels.length < 3) return 0;
+    S.learn.seen = S.learn.seen || {};
+    const med = Tools.median(reels.map(Tools.engagement));
+    let added = 0;
+    reels.forEach((r) => {
+      if (S.learn.seen[r.id]) return;
+      S.learn.seen[r.id] = 1;
+      Tools.learn(
+        S.learn.arms,
+        { hook: Tools.hookPattern(Tools.firstLine(r.caption)) },
+        Tools.rewardFrom(Tools.engagement(r), med),
+      );
+      added++;
+    });
+    if (added) save();
+    return added;
+  }
+  const hookLift = () => {
+    const reels = liveReels();
+    return reels.length >= 4 ? Tools.featureLift(reels) : [];
+  };
+  const patternLabel = (id) =>
+    (Tools.HOOK_PATTERNS.find((p) => p.id === id) || { label: id }).label;
   function learnedPicks() {
     const arms = S.learn.arms;
     if (!Tools.totalResults(arms)) return null;
@@ -1036,7 +1067,21 @@
     );
     $("#kbAud").value = S.kb.audience || "";
     $("#kbTone").value = S.kb.tone || "";
-    $("#kbGo").disabled = !docs.length;
+    $("#kbGo").disabled = false;
+    renderKbLearn();
+  }
+  function renderKbLearn() {
+    learnFromReels();
+    const arms = S.learn.arms.hook,
+      ranked = Tools.rank(
+        arms,
+        Tools.HOOK_PATTERNS.map((p) => p.id),
+      )
+        .filter((r) => r.n > 0)
+        .slice(0, 4);
+    $("#kbLearn").innerHTML = ranked.length
+      ? `<div class="lab">What Studio has learned about your hooks</div><div class="chips">${ranked.map((r) => `<span class="chip ${r.mean >= 0.55 ? "good" : ""}" title="${r.n} posts">${esc(patternLabel(r.option))} · ${Math.round(r.mean * 100)}</span>`).join("")}</div><p class="muted small">Each script is written in a hook style chosen from these results, plus one style you have barely tried so it keeps learning.</p>`
+      : `<p class="muted small">Studio has no results yet, so it will try different hook styles. Connect Instagram, or link reels on the Calendar, and it learns which styles earn the most engagement, then writes more of those.</p>`;
   }
   function openKb() {
     [dlg, apid, impd, gend, igd].forEach((d) => {
@@ -1150,19 +1195,45 @@
     try {
       S.kb.audience = $("#kbAud").value.trim();
       S.kb.tone = $("#kbTone").value;
-      const list = await AI.fromKnowledge({
+      learnFromReels();
+      const count = +$("#kbCount").value,
+        plan = Tools.pickPatterns(S.learn.arms.hook, count),
+        reels = liveReels()
+          .filter((r) => r.caption)
+          .sort((x, y) => Tools.engagement(y) - Tools.engagement(x)),
+        winners = reels
+          .slice(0, 3)
+          .map((r) => Tools.firstLine(r.caption))
+          .filter(Boolean),
+        avoid = S.scripts
+          .slice(0, 12)
+          .map((x) => x.blocks[0] && x.blocks[0].text)
+          .filter(Boolean);
+      const list = await AI.autoScripts({
         docs: S.kb.docs,
         brand: { audience: S.kb.audience, tone: S.kb.tone },
         topic: $("#kbTopic").value.trim(),
-        count: +$("#kbCount").value,
         niche: S.niche,
+        plan,
+        winners,
+        avoid,
       });
+      const lift = hookLift();
       const made = list.map((parts) => {
+        /* of the candidate hooks, keep the one that scores best; keep the others as alternatives */
+        const ranked = parts.hooks
+          .map((h) => ({ h, s: Tools.scoreHook(h, lift) }))
+          .sort((x, y) => y.s - x.s);
         const sc = scriptFrom(
-          Tools.blocksFrom(parts, { addCta: true }),
-          parts.title || shortTitle(parts.hook),
-          "From knowledge base",
+          Tools.blocksFrom(
+            { hook: ranked[0].h, body: parts.body, comment: parts.comment },
+            { addCta: true },
+          ),
+          parts.title || shortTitle(ranked[0].h),
+          "Written by Studio · " + patternLabel(parts.pattern),
         );
+        sc.hooks = ranked.slice(1, 5).map((x) => x.h);
+        sc.pattern = parts.pattern;
         applyLearned(sc);
         fitFormat(sc);
         addScript(sc);
@@ -1175,7 +1246,7 @@
       $("#kbOut").innerHTML = made
         .map(
           (sc) =>
-            `<li><span><b>${esc(sc.title)}</b><small class="muted">${esc(sc.blocks[0].text)}</small></span><button type="button" class="btn sm" data-open="${esc(sc.id)}">Open</button></li>`,
+            `<li><span><b>${esc(sc.title)}</b><small class="muted">${esc(patternLabel(sc.pattern))} · ${esc(sc.blocks[0].text)}</small></span><button type="button" class="btn sm" data-open="${esc(sc.id)}">Open</button></li>`,
         )
         .join("");
       $$("#kbOut [data-open]").forEach(
@@ -1379,6 +1450,16 @@
     const frames = BD.get(sc.id) || [];
     return `<details class="breakdown"><summary>${svg("film2", 15)} Reel breakdown · ${sc.breakdown.length} frames</summary><div class="bdlist">${sc.breakdown.map((b, i) => `<div class="bditem">${frames[i] ? `<img src="data:image/jpeg;base64,${frames[i].jpeg}" alt="">` : '<span class="bdno"></span>'}<div><b>${Number(b.t).toFixed(1)}s</b><p>${esc(b.visual)}</p>${b.text ? `<p class="bdtext">“${esc(b.text)}”</p>` : ""}</div></div>`).join("")}</div></details>`;
   }
+  function hookAltsHtml(sc) {
+    const alts = sc.hooks || [];
+    const style =
+      sc.blocks[0] && sc.blocks[0].text
+        ? patternLabel(Tools.hookPattern(sc.blocks[0].text))
+        : "";
+    if (!alts.length && !style) return "";
+    const lift = hookLift();
+    return `<div class="hookalts"><span class="muted small">${svg("flame", 13)} Hook style: <b>${esc(style)}</b>${sc.blocks[0] ? ` · score ${Tools.scoreHook(sc.blocks[0].text, lift)}` : ""}</span>${alts.length ? `<div class="altlist">${alts.map((h, i) => `<button type="button" class="chip btnchip" data-hookalt="${i}" title="Swap this in as the hook (score ${Tools.scoreHook(h, lift)})">${esc(h)}</button>`).join("")}</div>` : ""}</div>`;
+  }
   function viewScript() {
     const sc = active();
     const draw = () => {
@@ -1393,6 +1474,7 @@
         <div class="timeline" id="timeline" aria-hidden="true">${timelineHtml(sc)}</div>
         ${breakdownHtml(sc)}
         <p class="tip">${svg("sparkles", 14)} Paste a whole caption into the hook line, or the line below it, and it splits into lines. Paste a reel link to import it.</p>
+        ${hookAltsHtml(sc)}
         <div id="blocks">${sc.blocks
           .map(
             (b, i) => `
@@ -1497,6 +1579,19 @@
             revokeVideo(b.dataset.rm);
             S.scripts = S.scripts.filter((x) => x.id !== b.dataset.rm);
             if (S.activeId === b.dataset.rm) S.activeId = null;
+            save();
+            viewScript();
+          }),
+      );
+      $$("[data-hookalt]").forEach(
+        (b) =>
+          (b.onclick = () => {
+            const i = +b.dataset.hookalt,
+              old = sc.blocks[0].text;
+            sc.blocks[0].text = sc.hooks[i];
+            sc.hooks[i] = old;
+            sc.pattern = Tools.hookPattern(sc.blocks[0].text);
+            sc.prod = defaultProd();
             save();
             viewScript();
           }),
@@ -2715,6 +2810,15 @@
           ],
           ["Pace", dim("pace", Object.keys(PACES))],
           ["Captions", dim("caption", RV.FX_OPTIONS.caption)],
+          [
+            "Hooks",
+            dim(
+              "hook",
+              Tools.HOOK_PATTERNS.map((p) => p.id),
+            ).map((r) =>
+              Object.assign({}, r, { option: patternLabel(r.option) }),
+            ),
+          ],
         ]
       : [];
     return `<div class="dual">
