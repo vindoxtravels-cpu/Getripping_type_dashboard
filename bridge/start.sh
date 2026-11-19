@@ -7,8 +7,6 @@ cd "$(dirname "$0")" || exit 1
 SPEECH=0
 [ "$1" = "--speech" ] && { SPEECH=1; shift; }
 PY=python3
-# optional local secrets, e.g. COMPOSIO_API_KEY=ck_... (kept out of git)
-[ -f .env ] && { set -a; . ./.env; set +a; }
 [ -x .venv/bin/python ] && PY=.venv/bin/python
 need_venv() { [ -d .venv ] || python3 -m venv --system-site-packages .venv || { echo "Could not create a Python virtual environment."; exit 1; }; PY=.venv/bin/python; }
 if ! "$PY" -c "import edge_tts" 2>/dev/null; then

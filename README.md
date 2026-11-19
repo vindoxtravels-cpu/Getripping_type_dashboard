@@ -88,32 +88,28 @@ Every generated voice-over has a player and a WAV download.
 
 `./bridge/start.sh` runs `bridge/server.py`, a small program that stays on your computer. It serves the app and adds Claude through your Claude Code (text and images), Edge speech, reel video analysis (frames and speech-to-text) and a status check for each. Optional packages are installed into `bridge/.venv`, never your system Python. It is locked down: it listens on `127.0.0.1` only; it refuses requests whose Host or Origin isn't this app; it needs a random token that changes every time it starts; and it serves only the app's own files (not `bridge/`, `tests/`, `.git` or dotfiles). `python3 tests/helper_check.py` checks all of this with a stand-in for Claude Code, without touching your real account.
 
-## Instagram: one or many accounts (through Composio)
+## Instagram insights (sign in with Composio)
 
-Insights reads your own accounts through [Composio](https://composio.dev). It is read-only: Studio only runs four Instagram _read_ tools (profile, media, account insights, media insights), never posts, and never sees an Instagram password or token. Composio holds the connection; a small proxy keeps your Composio API key on the server.
+Insights reads your Instagram professional account through [Composio](https://composio.dev), signed in the same way you sign in to Claude: **no API key and no secret**. It is read-only: Studio only asks Composio to run four Instagram _read_ tools (profile, media, account insights, media insights), never posts, and never sees an Instagram password or token.
 
-1. Each account must be a **Business or Creator** account.
-2. Give the server your Composio API key.
-   - **Deployed (Cloudflare):** `npx wrangler secret put COMPOSIO_API_KEY`. Also set `ALLOWED_EMAILS` (`npx wrangler secret put ALLOWED_EMAILS`, for example `you@gmail.com`; several addresses separated by commas). The site then asks you to **Sign in with Gmail** through Composio (add a Gmail auth config in your Composio project): Studio reads only your address, signs a 7-day cookie, and deletes the temporary Gmail connection. Without `ALLOWED_EMAILS` (or the simpler shared `APP_PASSCODE`), anyone with the site's link can read your insights.
-   - **On your computer:** put `COMPOSIO_API_KEY=ck_...` in `bridge/.env` (git-ignored) or run `COMPOSIO_API_KEY=... ./bridge/start.sh`.
-3. In your Composio project add an **Instagram** auth config (Composio managed is fine).
-4. Click **Connect Instagram → Connect an Instagram account**. Composio opens Instagram's own sign-in. Repeat for more accounts. Accounts already connected in Composio show up automatically; press **Check again**.
+1. The account must be a **Business or Creator** account.
+2. Click **Connect Instagram → Sign in with Composio**. Composio's own page opens (sign in or create a free account) and sends you straight back. This is a standard OAuth 2.1 sign-in with PKCE; Studio registers itself as a public client, so there is no secret to store.
+3. Press **Connect Instagram**. Composio opens Instagram's own sign-in. Then press **Check again**.
 
-What you get, per account or for **All accounts** together: views, accounts reached, new followers and interactions **compared with the previous period**, follower growth (and the change since you connected, from snapshots saved each time you refresh), the follower / non-follower split, a posting streak, top reels with thumbnails, **carousel** reach, saves and shares, and per-reel likes, comments, shares, saves and reach.
+Your Composio sign-in token stays in this browser (`localStorage`); **Sign out** removes it. Composio's sign-in server doesn't let browsers read its replies, so the two sign-in calls (register this site, exchange the code for a token) go through a tiny relay: `worker.js` when deployed, the helper on your computer. It holds no key or secret and only forwards a fixed set of fields to Composio. After that, Studio talks to Composio's MCP server (`connect.composio.dev/mcp`) directly from the browser, with your token. Composio acts on your **default** Instagram account; change the default in Composio to switch.
+
+What you get: views, accounts reached, new followers and interactions **compared with the previous period**, follower growth (and the change since you connected, from snapshots saved each time you refresh), the follower / non-follower split, a posting streak, top reels with thumbnails, **carousel** reach, saves and shares, and per-reel likes, comments, shares, saves and reach.
 
 - Instagram limits these windows to **30 days**, so the ranges are 7, 14 and 30 days.
 - Some metrics aren't available under 100 followers. Anything Instagram refuses is listed as _metrics unavailable_.
-- To disconnect an account, remove it in the Composio dashboard.
 - Posting to Instagram from here is not included.
 
 ## Deploying to Cloudflare
 
-`wrangler.jsonc` serves the app as static assets and runs `worker.js` for `/api/*` (the Composio proxy). `.assetsignore` keeps `bridge/`, `tests/`, `reference/` and the worker itself out of the public files.
+`wrangler.jsonc` serves the app as static assets and runs `worker.js` for `/api/oauth/*` (the sign-in relay). There are no secrets to set. `.assetsignore` keeps `bridge/`, `tests/`, `reference/` and the screenshots out of the public files.
 
 ```bash
 npx wrangler deploy
-npx wrangler secret put COMPOSIO_API_KEY
-npx wrangler secret put ALLOWED_EMAILS
 ```
 
 What works on the deployed site, and what needs your computer:
@@ -125,31 +121,13 @@ What works on the deployed site, and what needs your computer:
 | Claude (scripts, direction, vision) | **API key** (Sign in with Claude can't work on a website: it runs Claude Code on your own computer) | Sign in with Claude, or API key |
 | Watch a reel video                  | Yes: frames cut in the browser (no speech-to-text)                                                  | ffmpeg frames + speech-to-text  |
 | Voice-over                          | ElevenLabs key                                                                                      | Edge voices or ElevenLabs       |
-| Instagram insights                  | Yes, through the Worker                                                                             | Yes, through the helper         |
+| Instagram insights                  | Yes: sign in with Composio                                                                          | Yes: sign in with Composio      |
 
 ## Video formats and templates
 
 Pick **What kind of video?** (Faceless, Comic & cartoon, Explainer, Cinematic, News & editorial, Collage & craft, Retro & neon) in Discover, the importer or Studio. It narrows the template list, and Claude only chooses a template from that format.
 
-Templates live in `THEMES` in `video.js`. Add one with a single line, for example `T("Name", background, text, accent, second accent, "orbs", { look: "hud", face: ["700", MONO] })`. A template with a `look` gets its own decoration (frames, tickers, stamps, tape and so on); add a `case` for it in `drawLook()`. List it under one or more formats in `FORMATS`. Included looks: Minimal, Luxury, Brutalist, Collage, Watercolour, Newsroom, Sci-fi HUD and Vaporwave.
-
-### Template packs from GitHub
-
-You don't have to edit code to add templates. In **Studio → Templates**, paste a public GitHub repository (`owner/repo`, or a link to a folder in it). Studio reads the `.json` files in its `templates/` folder and adds them to your styles and formats. They are kept in this browser; **Remove imported** clears them. Templates are data only (colours, a background `style`, an optional built-in `look`, a `font`, and `formats` to list them under), so nothing from the repository is ever run as code. Private repositories aren't supported. `templates/sample-pack.json` in this repo is a working example (connect `vindoxtravels-cpu/Getripping_type_dashboard` to try it).
-
-```json
-{
-  "name": "Noir Mono",
-  "bg": "#0a0a0a",
-  "fg": "#f2f2f2",
-  "ac": "#ff4d4d",
-  "ac2": "#ffffff",
-  "style": "scan",
-  "look": "hud",
-  "font": { "family": "mono", "weight": "700" },
-  "formats": ["faceless", "cinematic"]
-}
-```
+Templates live in `THEMES` in `video.js`. Add one with a single line, for example `T("Name", background, text, accent, second accent, "orbs", { look: "hud", face: ["700", MONO] })`. A template with a `look` gets its own decoration (frames, tickers, stamps, tape and so on); add a `case` for it in `drawLook()`. List it under one or more formats in `FORMATS`. Included looks: Minimal, Luxury, Brutalist, Collage, Watercolour, Newsroom, Sci-fi HUD and Vaporwave. Each one has its own centrepiece (a live countdown clock, stamp, window or card), and numbers in a scene ("312 sign-ups at $29") become stat tiles styled for that template.
 
 ## Learning from results
 
@@ -209,10 +187,8 @@ A rule-based score out of 100, not a trained model. It starts at 100 and loses p
 - `index.html`, `styles.css`: the interface
 - `app.js`: the six screens, dialogs and app logic
 - `video.js`: the video engine (scene planner, animated renderer, effects, recorder, beat synthesizer)
-- `instagram.js`: the Instagram client (multiple accounts, through Composio)
+- `instagram.js`: Composio sign-in (OAuth with PKCE) and the Instagram client
 - `worker.js`, `wrangler.jsonc`, `.assetsignore`: the Cloudflare deployment and its Composio proxy
-- `templates.js`: loads template packs from a GitHub repository
-- `templates/`: a sample template pack
 - `frames.js`: cuts a video into key frames in the browser (used when the helper isn't running)
 - `ai.js`: the Claude client (sign-in through the helper, or an API key)
 - `voice.js`: voice-over generation (Edge, ElevenLabs), joining, WAV export
@@ -220,8 +196,8 @@ A rule-based score out of 100, not a trained model. It starts at 100 and loses p
 - `bridge/server.py`, `bridge/start.sh`: the helper
 - `tools.js`: pure logic with no page code: link parsing, script splitting, paste handling, hook analysis and the learning loop
 - `tests/tools.test.js`: unit tests for `tools.js`. Run `node tests/tools.test.js`
-- `tests/helper_check.py`: checks the helper's security, sign-in plumbing and Composio proxy. Run `python3 tests/helper_check.py`
-- `tests/templates.test.js`: checks the template-pack loader. Run `node tests/templates.test.js`
-- `tests/worker.test.mjs`: checks the Worker's proxy (passcode, allowed tools, origin checks). Run `node tests/worker.test.mjs`
+- `tests/helper_check.py`: checks the helper's security, sign-in plumbing and OAuth relay. Run `python3 tests/helper_check.py`
+- `tests/worker.test.mjs`: checks the Worker's sign-in relay. Run `node tests/worker.test.mjs`
+- `tests/instagram.test.js`: checks the Composio sign-in and Instagram client against a stand-in for Composio. Run `node tests/instagram.test.js`
 
 Research on the reference landing page is on the [`rea-output` branch](../../tree/rea-output/2026-11-18-getripping-landing).

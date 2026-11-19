@@ -47,12 +47,7 @@ ORIGINS = {f"http://{h}" for h in HOSTS}
 MIME = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
         ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".png": "image/png", ".ico": "image/x-icon", ".json": "application/json"}
 HIDDEN_DIRS = {"bridge", "tests", "node_modules", "reference"}
-HIDDEN_FILES = {"worker.js"}  # the Cloudflare Worker is not part of the local site
-COMPOSIO = "https://backend.composio.dev/api/v3.1"
-# Only these read-only Instagram tools can be run through the Composio proxy (same list as worker.js).
-COMPOSIO_TOOLS = {"INSTAGRAM_GET_USER_INFO", "INSTAGRAM_GET_IG_USER_MEDIA", "INSTAGRAM_GET_USER_INSIGHTS", "INSTAGRAM_GET_IG_MEDIA_INSIGHTS"}
-ID_RE = re.compile(r"^[A-Za-z0-9_-]{3,100}$")
-USER_RE = re.compile(r"^[A-Za-z0-9_.@+-]{1,128}$")
+HIDDEN_FILES = set()
 MAX_BODY = 200_000
 MAX_VISION = 25_000_000          # frames sent to Claude
 MAX_VIDEO = 300 * 1024 * 1024    # a reel video
@@ -286,67 +281,40 @@ def analyze_video(video_path, work_dir):
 _voices = {"t": 0.0, "v": None}
 
 
-def composio_key():
-    return os.environ.get("COMPOSIO_API_KEY", "").strip()
+OAUTH_UP = {"register": "https://login.composio.dev/oauth2/register", "token": "https://login.composio.dev/oauth2/token"}
+TOKEN_FIELDS = ("grant_type", "code", "redirect_uri", "client_id", "code_verifier", "refresh_token")
 
 
-def composio_call(path, payload=None):
-    """One request to Composio with the key from this computer's environment. The key never reaches the browser."""
-    req = urllib.request.Request(COMPOSIO + path, method="POST" if payload is not None else "GET",
-                                 data=json.dumps(payload).encode() if payload is not None else None,
-                                 headers={"x-api-key": composio_key(), "content-type": "application/json", "user-agent": "reel-studio-helper"})
+def oauth_relay(kind, raw, origin):
+    """Composio's sign-in server doesn't let browsers read its replies, so the two sign-in calls go through here.
+    No secret or API key is involved: a fixed set of fields goes to one fixed address."""
+    from urllib.parse import parse_qs, urlencode
+    if kind == "register":
+        b = json.loads(raw or b"{}")
+        uris = b.get("redirect_uris") or []
+        if not uris or not all(str(u).startswith(origin + "/") for u in uris):
+            raise RuntimeError("Redirect addresses must be on this site.")
+        data = json.dumps({"client_name": str(b.get("client_name", "Reel Studio"))[:60], "redirect_uris": uris,
+                           "grant_types": ["authorization_code", "refresh_token"], "response_types": ["code"],
+                           "token_endpoint_auth_method": "none"}).encode()
+        ctype = "application/json"
+    elif kind == "token":
+        q = parse_qs(raw.decode())
+        out = {k: q[k][0] for k in TOKEN_FIELDS if k in q}
+        if out.get("grant_type") not in ("authorization_code", "refresh_token"):
+            raise RuntimeError("unsupported_grant_type")
+        if "redirect_uri" in out and not out["redirect_uri"].startswith(origin + "/"):
+            raise RuntimeError("Redirect address must be on this site.")
+        data = urlencode(out).encode()
+        ctype = "application/x-www-form-urlencoded"
+    else:
+        raise RuntimeError("Not found.")
+    req = urllib.request.Request(OAUTH_UP[kind], data=data, method="POST", headers={"content-type": ctype, "user-agent": "reel-studio-helper"})
     try:
-        with urllib.request.urlopen(req, timeout=60) as r:
-            return json.loads(r.read() or b"{}")
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.status, r.read()
     except urllib.error.HTTPError as e:
-        try:
-            body = json.loads(e.read() or b"{}")
-        except Exception:  # noqa: BLE001
-            body = {}
-        err = body.get("error")
-        msg = (err.get("message") if isinstance(err, dict) else err) or body.get("message") or f"Composio answered {e.code}."
-        raise RuntimeError(str(msg)[:300])
-    except Exception as e:  # noqa: BLE001
-        raise RuntimeError(f"Could not reach Composio: {e}"[:300])
-
-
-def composio_status():
-    if not composio_key():
-        return {"configured": False, "accounts": [], "help": "Set COMPOSIO_API_KEY, then restart the helper: COMPOSIO_API_KEY=... ./bridge/start.sh"}
-    r = composio_call("/connected_accounts?toolkit_slugs=instagram&statuses=ACTIVE&limit=50")
-    return {"configured": True, "protected": False, "accounts": [
-        {"id": a.get("id"), "alias": a.get("alias") or "", "userId": a.get("user_id") or "", "status": a.get("status")} for a in r.get("items", [])]}
-
-
-def composio_link(origin):
-    cfg = composio_call("/auth_configs?toolkit_slug=instagram&limit=20")
-    item = next((c for c in cfg.get("items", []) if c.get("status") != "DISABLED"), None)
-    if not item:
-        raise RuntimeError("Your Composio project has no Instagram auth config yet. In the Composio dashboard open Auth Configs, add Instagram (Composio managed), then try again.")
-    r = composio_call("/connected_accounts/link", {"auth_config_id": item["id"], "user_id": os.environ.get("COMPOSIO_USER_ID", "reel-studio"), "callback_url": origin + "/"})
-    if not r.get("redirect_url"):
-        raise RuntimeError("Could not start the connection.")
-    return {"url": r["redirect_url"]}
-
-
-def composio_execute(body):
-    tool, account, user, args = body.get("tool"), str(body.get("account") or ""), body.get("userId"), body.get("arguments")
-    if tool not in COMPOSIO_TOOLS:
-        raise RuntimeError("That tool is not allowed.")
-    if not ID_RE.match(account):
-        raise RuntimeError("Choose an Instagram account first.")
-    if user and not USER_RE.match(str(user)):
-        raise RuntimeError("Bad user id.")
-    if not isinstance(args, dict):
-        raise RuntimeError("Bad arguments.")
-    payload = {"connected_account_id": account, "arguments": args}
-    if user:
-        payload["user_id"] = user
-    r = composio_call("/tools/execute/" + tool, payload)
-    if r.get("successful") is False:
-        err = r.get("error")
-        raise RuntimeError(str((err.get("message") if isinstance(err, dict) else err) or "Instagram returned an error.")[:300])
-    return {"data": r.get("data")}
+        return e.code, e.read()
 
 
 def edge_voices():
@@ -477,6 +445,12 @@ class Handler(BaseHTTPRequestHandler):
                 if not text or len(text) > 30000:
                     raise RuntimeError("Prompt must be 1 to 30000 characters.")
                 return self._json(200, {"text": claude_vision(str(b.get("system", ""))[:4000], text, b.get("images"), str(b.get("model", "sonnet")))})
+            if path.startswith("/api/oauth/"):
+                n = int(self.headers.get("Content-Length") or 0)
+                if n > 4000:
+                    raise RuntimeError("Request too large.")
+                code, data = oauth_relay(path[len("/api/oauth/"):], self.rfile.read(n), f"http://{self.headers.get('Host')}")
+                return self._send(code, data, "application/json")
             body = self._body()
             if path == "/api/claude/ask":
                 user = str(body.get("user", ""))
@@ -485,10 +459,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {"text": claude_ask(str(body.get("system", ""))[:4000], user, str(body.get("model", "sonnet")))})
             if path == "/api/claude/login":
                 return self._json(200, claude_login())
-            if path == "/api/composio/link":
-                return self._json(200, composio_link(f"http://{self.headers.get('Host')}"))
-            if path == "/api/composio/execute":
-                return self._json(200, composio_execute(body))
             if path == "/api/tts/edge":
                 audio = edge_speak(body.get("text"), body.get("voice"), body.get("rate", "+0%"), body.get("pitch", "+0Hz"))
                 return self._send(200, audio, "audio/mpeg")
@@ -507,8 +477,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, claude_status())
             if path == "/api/tts/voices":
                 return self._json(200, {"voices": edge_voices()})
-            if path == "/api/composio/status":
-                return self._json(200, composio_status())
             return self._json(404, {"error": "Not found."})
         except Exception as e:  # noqa: BLE001
             print(f"[helper] {path}: {e}")

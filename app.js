@@ -1402,7 +1402,7 @@
       <section class="panel">
         <div class="ph"><h3>${esc(sc.title)}</h3><span class="score-pill ${scoreClass(vir.score)}">Virality ${vir.score}</span></div>
         <div class="lab">Style</div>
-        <div class="fmtrow tight">${formatBar("fmtBarS")}<button type="button" class="btn sm" id="tplBtn">${svg("plus", 14)} Templates</button></div>
+        <div class="fmtrow tight">${formatBar("fmtBarS")}</div>
         <div class="themes" id="themes">${themeList(sc)
           .map(
             (t) =>
@@ -1473,7 +1473,6 @@
       viewProduction();
     };
     bindFormat("fmtBarS", () => viewProduction());
-    $("#tplBtn").onclick = openTemplates;
     $$("#themes [data-theme]").forEach(
       (b) =>
         (b.onclick = () =>
@@ -3298,67 +3297,7 @@
     if (onStage("production")) viewProduction();
   };
 
-  /* Template packs from a GitHub repository */
-  const tpld = $("#tplDialog");
-  const tplMsg = (t, k) => noteTo("#tplMsg", t, k);
-  function renderTplState() {
-    const st = RV.importedTemplates();
-    $("#tplState").innerHTML = st.names.length
-      ? `<div class="state ok">${svg("check", 16)}<div><b>${st.names.length} imported template${st.names.length === 1 ? "" : "s"}</b><span>${esc(st.names.join(", "))}${st.repo ? ` · from ${esc(st.repo)}` : ""}</span></div></div>`
-      : "";
-    $("#tplRemove").hidden = !st.names.length;
-  }
-  function openTemplates() {
-    [dlg, apid, impd, gend, igd].forEach((d) => {
-      if (d.open) d.close();
-    });
-    $("#tplRepo").value = RV.importedTemplates().repo;
-    tplMsg("");
-    renderTplState();
-    tpld.showModal();
-  }
-  $("#tplGo").onclick = async (e) => {
-    const btn = e.currentTarget,
-      repo = $("#tplRepo").value.trim();
-    busy(btn, true, "Loading…");
-    tplMsg("");
-    try {
-      const pack = await Templates.fetchPack(repo);
-      const r = RV.addTemplates(pack.templates, repo);
-      const bits = [];
-      if (r.added.length)
-        bits.push(`Added ${r.added.length}: ${r.added.join(", ")}.`);
-      const skipped = [...pack.errors, ...r.rejected];
-      if (skipped.length)
-        bits.push(
-          `Skipped ${skipped.length}: ${skipped.slice(0, 4).join("; ")}${skipped.length > 4 ? "…" : ""}`,
-        );
-      tplMsg(
-        bits.join(" ") || "Nothing to add.",
-        r.added.length ? "ok" : "bad",
-      );
-      renderTplState();
-    } catch (err) {
-      tplMsg(err.message, "bad");
-    } finally {
-      busy(btn, false);
-    }
-  };
-  $("#tplRemove").onclick = () => {
-    if (!confirm("Remove all imported templates from this browser?")) return;
-    RV.removeTemplates();
-    S.scripts.forEach((sc) => {
-      if (!themeByName(sc.style.theme)) sc.style.theme = fmtThemes()[0].name;
-    });
-    save();
-    tplMsg("Imported templates removed.");
-    renderTplState();
-  };
-  tpld.addEventListener("close", () => {
-    if (onStage("production")) render();
-  });
-
-  /* Instagram accounts, connected through Composio */
+  /* Instagram insights, signed in through Composio */
   const igd = $("#igDialog");
   function igMsg(text, kind) {
     const m = $("#igMsg");
@@ -3369,44 +3308,35 @@
     const list = IG.list(),
       act = IG.activeId(),
       st = IG.setup();
-    $("#igStatus").innerHTML =
-      st.configured === false
-        ? `<div class="state off">${svg("key", 16)}<div><b>Composio isn’t set up on the server yet</b><span>${esc(st.help || "Add your Composio API key to the server, then press Check again.")}</span></div></div>`
+    const state = !st.signedIn
+      ? `<div class="state">${svg("key", 16)}<div><b>Sign in with Composio</b><span>One click. Composio keeps your Instagram connection so Studio never holds an Instagram token.</span></div></div>`
+      : st.connected === false
+        ? `<div class="state off">${svg("camera", 16)}<div><b>No Instagram account connected yet</b><span>Press Connect Instagram and sign in to the Business or Creator account you want to read.</span></div></div>`
         : "";
-    $("#igPass").hidden = !st.needsPasscode;
-    $("#igLogin").hidden = !st.needsLogin;
-    $("#igLink").disabled =
-      st.configured === false || st.needsPasscode || st.needsLogin;
-    $("#igList").innerHTML = list.length
-      ? list
-          .map(
-            (
-              a,
-            ) => `<div class="acctrow"><span class="av">${avatarHtml(a.username, a.avatar)}</span>
-    <div><b>@${esc(a.username)}</b><small class="${a.status === "error" ? "badc" : "muted"}">${a.status === "error" ? esc(a.error || "Needs attention") : a.id === act ? "Active" : "Connected"}</small></div>
-    <span class="spacer"></span>${a.id === act ? "" : `<button type="button" class="btn sm" data-use="${esc(a.id)}">Use</button>`}</div>`,
-          )
-          .join("")
-      : st.configured === false || st.needsPasscode || st.needsLogin
-        ? ""
-        : '<p class="muted small">No accounts yet. Connect one below. You can add as many as you manage.</p>';
-    $$("#igList [data-use]").forEach(
-      (b) =>
-        (b.onclick = () => {
-          IG.setActive(b.dataset.use);
-          S.insightsAcct = b.dataset.use;
-          save();
-          renderIgList();
-          renderRailCards();
-        }),
-    );
+    $("#igStatus").innerHTML = state;
+    $("#igList").innerHTML = list
+      .map(
+        (
+          a,
+        ) => `<div class="acctrow"><span class="av">${avatarHtml(a.username, a.avatar)}</span>
+    <div><b>@${esc(a.username)}</b><small class="${a.status === "error" ? "badc" : "muted"}">${a.status === "error" ? esc(a.error || "Needs attention") : a.id === act ? "Connected" : "Connected"}</small></div></div>`,
+      )
+      .join("");
+    $("#igMain").textContent = !st.signedIn
+      ? "Sign in with Composio"
+      : st.connected
+        ? "Connect another Instagram"
+        : "Connect Instagram";
+    $("#igMain").classList.toggle("primary", !st.connected || !st.signedIn);
+    $("#igCheck").hidden = !st.signedIn;
+    $("#igOut").hidden = !st.signedIn;
   }
   async function igSync(quiet) {
     try {
       await IG.sync();
-      if (!quiet) igMsg("");
+      if (!quiet) igMsg(st_note());
     } catch (err) {
-      if (!quiet || err.needsPasscode || err.needsLogin)
+      if (!quiet || !err.needsLogin)
         igMsg(err.message, err.needsLogin ? "" : "bad");
     }
     if (!IG.activeId() && IG.list()[0]) IG.setActive(IG.list()[0].id);
@@ -3415,6 +3345,7 @@
     renderIgList();
     renderRailCards();
   }
+  const st_note = () => IG.setup().note || "";
   function openIg() {
     [dlg, apid, impd, gend].forEach((d) => {
       if (d.open) d.close();
@@ -3422,7 +3353,7 @@
     igMsg("");
     renderIgList();
     igd.showModal();
-    igSync();
+    if (IG.setup().signedIn) igSync();
   }
   $("#igCard").onclick = openIg;
   $("#igCheck").onclick = async (e) => {
@@ -3430,14 +3361,17 @@
     busy(btn, true, "Checking…");
     await igSync();
     busy(btn, false);
-    if (IG.connected())
-      igMsg(`${IG.list().length} account(s) connected.`, "ok");
+    if (IG.connected()) igMsg("Instagram is connected.", "ok");
   };
-  $("#igLink").onclick = async (e) => {
+  $("#igMain").onclick = async (e) => {
     const btn = e.currentTarget;
     busy(btn, true, "Opening…");
     igMsg("");
     try {
+      if (!IG.setup().signedIn) {
+        await IG.signIn(); // leaves this page for Composio, then returns here
+        return;
+      }
       const url = await IG.link();
       window.open(url, "_blank", "noopener");
       igMsg(
@@ -3450,44 +3384,13 @@
       busy(btn, false);
     }
   };
-  let loginPending = "";
-  $("#igLoginGo").onclick = async (e) => {
-    const btn = e.currentTarget;
-    busy(btn, true, "Opening…");
-    igMsg("");
-    try {
-      const r = await IG.auth.start();
-      loginPending = r.pending;
-      window.open(r.url, "_blank", "noopener");
-      $("#igLoginDone").hidden = false;
-      igMsg(
-        "Sign in with Google in the new tab, then press “I’ve signed in”.",
-        "ok",
-      );
-    } catch (err) {
-      igMsg(err.message, "bad");
-    } finally {
-      busy(btn, false);
-    }
-  };
-  $("#igLoginDone").onclick = async (e) => {
-    const btn = e.currentTarget;
-    busy(btn, true, "Checking…");
-    try {
-      const r = await IG.auth.finish(loginPending);
-      $("#igLoginDone").hidden = true;
-      igMsg(`Signed in as ${r.email}.`, "ok");
-      await igSync(true);
-    } catch (err) {
-      igMsg(err.message, "bad");
-    } finally {
-      busy(btn, false);
-    }
-  };
-  $("#igPassGo").onclick = async () => {
-    IG.setPasscode($("#igPassIn").value);
-    $("#igPassIn").value = "";
-    await igSync();
+  $("#igOut").onclick = () => {
+    IG.signOut();
+    S.insightsAcct = "";
+    save();
+    igMsg("Signed out of Composio.");
+    renderIgList();
+    renderRailCards();
   };
   igd.addEventListener("close", () => {
     renderRailCards();
@@ -3530,14 +3433,23 @@
     setTimeout(() => v.classList.remove("enter"), 1200);
   }
   render();
-  IG.sync()
-    .catch(() => {})
+  let cameBack = false;
+  IG.init()
+    .then((back) => {
+      cameBack = back;
+      if (back) toast("Signed in with Composio");
+      return IG.setup().signedIn ? IG.sync() : null;
+    })
+    .catch((err) => {
+      if (err && err.message) toast(err.message);
+    })
     .then(() => {
       if (IG.activeId() && !IG.get(S.insightsAcct))
         S.insightsAcct = IG.activeId();
       renderRailCards();
       if (onStage("analytics") || onStage("calendar") || onStage("production"))
         render();
+      if (cameBack && !IG.connected()) openIg();
     });
   AI.refresh().then(() => {
     renderRailCards();

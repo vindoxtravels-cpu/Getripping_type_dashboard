@@ -136,71 +136,49 @@
 
     <dialog id="igDialog">
       <form method="dialog" class="dlg" id="igForm">
-        <h3>Instagram accounts</h3>
+        <h3>Instagram insights</h3>
         <p class="muted">
-          Connect your Business or Creator accounts through Composio. Studio
-          only reads insights and never posts, and it never sees an Instagram
-          password or token.
+          Sign in with Composio, the same way you sign in to Claude. No API key.
+          Composio holds the link to your Instagram professional account and
+          Studio only reads its insights. It never posts and never sees your
+          Instagram password.
         </p>
         <div id="igStatus"></div>
         <div id="igList" class="acctlist"></div>
-        <div id="igLogin" class="apibox" hidden>
-          <p class="muted small">
-            This site is private. Sign in with your Gmail address through
-            Composio to continue. Studio only reads your address, then removes
-            the Gmail connection.
-          </p>
-          <div class="row end">
-            <button type="button" class="btn primary" id="igLoginGo">
-              Sign in with Gmail
-            </button>
-            <button type="button" class="btn" id="igLoginDone" hidden>
-              I’ve signed in
-            </button>
-          </div>
-        </div>
-        <div id="igPass" class="row" hidden>
-          <label style="flex: 1"
-            >Passcode
-            <input
-              id="igPassIn"
-              type="password"
-              autocomplete="off"
-              placeholder="The passcode set on this site"
-          /></label>
-          <button type="button" class="btn" id="igPassGo">Unlock</button>
-        </div>
         <p class="note" id="igMsg" role="status"></p>
         <details class="how">
           <summary>How does this work?</summary>
           <ol>
             <li>
-              Add your Composio API key to the server:
-              <code>npx wrangler secret put COMPOSIO_API_KEY</code> on the
-              deployed site, or
-              <code>COMPOSIO_API_KEY=… ./bridge/start.sh</code>
-              on your computer.
+              Press <b>Sign in with Composio</b>. Composio's own page opens;
+              sign in or create a free account, then you come straight back
+              here.
             </li>
             <li>
-              Press <b>Connect an Instagram account</b>. Composio opens
-              Instagram's own sign-in. Repeat to add more accounts.
+              Press <b>Connect Instagram</b>. Composio opens Instagram's sign-in
+              for the Business or Creator account you want to read.
             </li>
             <li>
-              Come back and press <b>Check again</b>. Accounts you already
-              connected in Composio show up automatically.
+              Come back and press <b>Check again</b>. Your insights appear in
+              step 5.
             </li>
           </ol>
           <p>
-            Set an <code>ALLOWED_EMAILS</code> secret on the deployed site (your
-            Gmail address) so only you can sign in and read the insights. To
-            disconnect an account, remove it in the Composio dashboard.
+            The sign-in token stays in this browser. <b>Sign out</b> removes it.
+            Composio reads your default Instagram account; change the default in
+            Composio to switch.
           </p>
         </details>
         <div class="row end">
           <button value="cancel" class="btn ghost">Close</button>
-          <button type="button" class="btn" id="igCheck">Check again</button>
-          <button type="button" class="btn primary" id="igLink">
-            Connect an Instagram account
+          <button type="button" class="linkbtn danger" id="igOut" hidden>
+            Sign out
+          </button>
+          <button type="button" class="btn" id="igCheck" hidden>
+            Check again
+          </button>
+          <button type="button" class="btn primary" id="igMain">
+            Sign in with Composio
           </button>
         </div>
       </form>
@@ -380,65 +358,6 @@
       </form>
     </dialog>
 
-    <dialog id="tplDialog">
-      <form method="dialog" class="dlg">
-        <h3>Template packs</h3>
-        <p class="muted">
-          Connect a public GitHub repository of templates. Studio reads the
-          <code>.json</code> files in its <code>templates/</code> folder and
-          adds them to your styles. Templates are only data (colours, a
-          background, a look, a font); nothing from the repository is ever run
-          as code.
-        </p>
-        <div id="tplState"></div>
-        <label
-          >GitHub repository
-          <input
-            id="tplRepo"
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="owner/repo, or a link to a folder in it"
-          />
-        </label>
-        <p class="note" id="tplMsg" role="status"></p>
-        <details class="how">
-          <summary>What goes in a template file?</summary>
-          <pre class="code">
-{
-  "name": "Noir Mono",
-  "bg": "#0a0a0a", "fg": "#f2f2f2",
-  "ac": "#ff4d4d", "ac2": "#ffffff",
-  "style": "scan",
-  "look": "hud",
-  "font": { "family": "mono", "weight": "700" },
-  "formats": ["faceless", "cinematic"]
-}</pre>
-          <p>
-            <code>style</code>: orbs, grid, scan, dots, rays, waves or confetti.
-            <code>look</code> (optional): minimal, luxury, brutal, collage,
-            wash, news, hud or vapor. A file can hold one template, a list, or
-            <code>{"templates": [...]}</code>.
-          </p>
-        </details>
-        <div class="row end">
-          <button value="cancel" class="btn ghost">Close</button>
-          <button
-            type="button"
-            class="linkbtn danger"
-            id="tplRemove"
-            style="margin-right: auto"
-            hidden
-          >
-            Remove imported
-          </button>
-          <button type="button" class="btn primary" id="tplGo">
-            Load templates
-          </button>
-        </div>
-      </form>
-    </dialog>
-
     <dialog id="genDialog">
       <form method="dialog" class="dlg">
         <h3>Make one like this</h3>
@@ -466,7 +385,6 @@
 
     <script src="helper.js"></script>
     <script src="tools.js"></script>
-    <script src="templates.js"></script>
     <script src="frames.js"></script>
     <script src="ai.js"></script>
     <script src="voice.js"></script>

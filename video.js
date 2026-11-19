@@ -19,14 +19,30 @@
     T("Minimal", "#f6f6f3", "#161616", "#e4572e", "#161616", "dots", {
       look: "minimal",
     }),
+    T("Glass", "#0f0c29", "#ffffff", "#8b5cf6", "#22d3ee", "orbs", {
+      look: "glass",
+    }),
+    T("Terminal", "#010409", "#c9d1d9", "#3fb950", "#58a6ff", "grid", {
+      look: "term",
+      face: ["700", MONO],
+    }),
+    T("Sticky Notes", "#f4efe6", "#2b2b2b", "#e8590c", "#ff9aa2", "dots", {
+      look: "notes",
+      face: ["800", '"Bradley Hand", "Comic Sans MS", "Segoe Print", cursive'],
+    }),
     T("Aurora", "#0b0b1a", "#ffffff", "#8b5cf6", "#22d3ee", "orbs"),
     T("Software / SaaS", "#0b1020", "#ffffff", "#3b5bff", "#22d3ee", "grid"),
-    T("Neon", "#07000f", "#ffffff", "#ff2bd6", "#22d3ee", "scan"),
+    T("Neon", "#07000f", "#ffffff", "#ff2bd6", "#22d3ee", "scan", {
+      look: "neon",
+    }),
     T("Sci-fi HUD", "#020b12", "#bff7ff", "#00b8d4", "#7cffcb", "grid", {
       look: "hud",
       face: ["700", MONO],
     }),
-    T("Comic book", "#fff3c4", "#111111", "#e5372b", "#2563eb", "dots"),
+    T("Comic book", "#fff3c4", "#111111", "#e5372b", "#2563eb", "dots", {
+      look: "comic",
+      face: ["900", FONT],
+    }),
     T("Blueprint", "#0b3b8c", "#ffffff", "#4aa8ff", "#ffffff", "grid"),
     T("Retro 80s", "#1a0633", "#ffffff", "#ff7a00", "#ff2bd6", "rays"),
     T("Chalkboard", "#1f2b24", "#f1f1e6", "#c9a400", "#9be3b6", "dots"),
@@ -83,6 +99,8 @@
       name: "Faceless",
       hint: "Text and motion only, no presenter",
       themes: [
+        "Glass",
+        "Terminal",
         "Minimal",
         "Aurora",
         "Software / SaaS",
@@ -113,6 +131,8 @@
       name: "Explainer",
       hint: "Teach one idea step by step",
       themes: [
+        "Terminal",
+        "Sticky Notes",
         "Whiteboard",
         "Blueprint",
         "Chalkboard",
@@ -126,7 +146,14 @@
       id: "cinematic",
       name: "Cinematic",
       hint: "Moody, premium, slow reveals",
-      themes: ["Cinematic 3D", "Luxury", "Glossy 3D", "Aurora", "Minimal"],
+      themes: [
+        "Glass",
+        "Cinematic 3D",
+        "Luxury",
+        "Glossy 3D",
+        "Aurora",
+        "Minimal",
+      ],
     },
     {
       id: "news",
@@ -139,6 +166,7 @@
       name: "Collage & craft",
       hint: "Paper, paint and tape",
       themes: [
+        "Sticky Notes",
         "Collage",
         "Paper cutouts",
         "Watercolour",
@@ -161,167 +189,6 @@
       ? f.themes.map(themeByName).filter(Boolean)
       : THEMES.slice();
   };
-
-  /* ---------- template packs: data-only templates loaded from a GitHub repo (no code is ever run from them) ---------- */
-  const STYLES = ["orbs", "grid", "scan", "dots", "rays", "waves", "confetti"];
-  const LOOKS = [
-    "minimal",
-    "luxury",
-    "brutal",
-    "collage",
-    "wash",
-    "news",
-    "hud",
-    "vapor",
-  ];
-  const FACES = { sans: FONT, serif: SERIF, mono: MONO };
-  const WEIGHTS = [
-    "400",
-    "500",
-    "600",
-    "700",
-    "800",
-    "900",
-    "italic 500",
-    "italic 600",
-    "italic 700",
-  ];
-  const HEX = /^#[0-9a-fA-F]{6}$/;
-  const TPL_KEY = "rs_templates";
-  const BUILTIN = new Set(THEMES.map((t) => t.name));
-  const imported = []; // validated specs, saved in this browser
-  /** Check one template spec. Returns { ok, theme, spec } or { ok: false, error }. */
-  function checkTemplate(raw) {
-    if (!raw || typeof raw !== "object" || Array.isArray(raw))
-      return { ok: false, error: "not a template object" };
-    const name = typeof raw.name === "string" ? raw.name.trim() : "";
-    if (!name || name.length > 40)
-      return { ok: false, error: "needs a name of up to 40 characters" };
-    if (BUILTIN.has(name))
-      return { ok: false, error: `"${name}" is a built-in template name` };
-    for (const k of ["bg", "fg", "ac"])
-      if (!HEX.test(raw[k] || ""))
-        return {
-          ok: false,
-          error: `${name}: "${k}" must be a colour like #112233`,
-        };
-    const ac2 = raw.ac2 == null ? raw.ac : raw.ac2;
-    if (!HEX.test(ac2))
-      return {
-        ok: false,
-        error: `${name}: "ac2" must be a colour like #112233`,
-      };
-    const style = raw.style == null ? "orbs" : raw.style;
-    if (!STYLES.includes(style))
-      return {
-        ok: false,
-        error: `${name}: style must be one of ${STYLES.join(", ")}`,
-      };
-    const extra = {};
-    if (raw.look != null) {
-      if (!LOOKS.includes(raw.look))
-        return {
-          ok: false,
-          error: `${name}: look must be one of ${LOOKS.join(", ")}`,
-        };
-      extra.look = raw.look;
-    }
-    let font = null;
-    if (raw.font != null) {
-      const f = raw.font;
-      if (!f || !FACES[f.family] || !WEIGHTS.includes(f.weight || "800"))
-        return {
-          ok: false,
-          error: `${name}: font needs family (sans, serif or mono) and a weight like 700 or italic 600`,
-        };
-      font = { family: f.family, weight: f.weight || "800" };
-      extra.face = [font.weight, FACES[font.family]];
-    }
-    const formats = Array.isArray(raw.formats)
-      ? raw.formats
-          .filter((f) => FORMATS.some((x) => x.id === f && x.themes))
-          .slice(0, 8)
-      : [];
-    const spec = {
-      name,
-      bg: raw.bg,
-      fg: raw.fg,
-      ac: raw.ac,
-      ac2,
-      style,
-      look: extra.look,
-      font,
-      formats,
-    };
-    return {
-      ok: true,
-      theme: T(name, raw.bg, raw.fg, raw.ac, ac2, style, extra),
-      spec,
-    };
-  }
-  function placeTemplate(theme, formats) {
-    const i = THEMES.findIndex((t) => t.name === theme.name);
-    if (i >= 0) THEMES.splice(i, 1);
-    THEMES.push(theme);
-    FORMATS.forEach((f) => {
-      if (!f.themes) return;
-      const at = f.themes.indexOf(theme.name);
-      if (at >= 0) f.themes.splice(at, 1);
-      if (formats.includes(f.id)) f.themes.push(theme.name);
-    });
-  }
-  const saveTemplates = () => {
-    try {
-      localStorage.setItem(
-        TPL_KEY,
-        JSON.stringify({ specs: imported, repo: tplRepo }),
-      );
-    } catch (e) {
-      /* storage blocked */
-    }
-  };
-  let tplRepo = "";
-  /** Add checked templates. Returns { added, rejected: [reason] }. */
-  function addTemplates(list, repo) {
-    const out = { added: [], rejected: [] };
-    list.forEach((raw) => {
-      const r = checkTemplate(raw);
-      if (!r.ok) return out.rejected.push(r.error);
-      placeTemplate(r.theme, r.spec.formats);
-      const j = imported.findIndex((x) => x.name === r.spec.name);
-      if (j >= 0) imported.splice(j, 1);
-      imported.push(r.spec);
-      out.added.push(r.spec.name);
-    });
-    if (repo) tplRepo = repo;
-    if (out.added.length) saveTemplates();
-    return out;
-  }
-  function removeTemplates() {
-    imported.splice(0).forEach((spec) => {
-      const i = THEMES.findIndex((t) => t.name === spec.name);
-      if (i >= 0) THEMES.splice(i, 1);
-      FORMATS.forEach((f) => {
-        const at = f.themes ? f.themes.indexOf(spec.name) : -1;
-        if (at >= 0) f.themes.splice(at, 1);
-      });
-    });
-    tplRepo = "";
-    saveTemplates();
-  }
-  try {
-    const saved = JSON.parse(localStorage.getItem(TPL_KEY) || "null");
-    if (saved && Array.isArray(saved.specs)) {
-      tplRepo = typeof saved.repo === "string" ? saved.repo : "";
-      addTemplates(saved.specs);
-    }
-  } catch (e) {
-    /* nothing saved */
-  }
-  const importedTemplates = () => ({
-    names: imported.map((x) => x.name),
-    repo: tplRepo,
-  });
 
   /* ---------- effects ---------- */
   const DEFAULT_FX = {
@@ -428,6 +295,7 @@
   }
 
   /* ---------- helpers ---------- */
+  let HAS_LOOK = false;
   let FACE = ["800", FONT];
   const faceFont = (size) => `${FACE[0]} ${size}px ${FACE[1]}`;
   const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
@@ -609,7 +477,7 @@
     if (s.layout) return s.layout;
     const maxW = W - 130,
       maxH = s.motif ? 620 : 800,
-      cy = s.motif ? H * 0.58 : H * 0.46;
+      cy = s.motif || HAS_LOOK ? H * 0.58 : H * 0.46;
     let size = s.type === "hook" || s.type === "outro" ? 100 : 84,
       lines,
       lh,
@@ -804,7 +672,64 @@
   }
 
   /* ---------- particles ---------- */
-  /* ---------- template looks: decoration layered on the animated background ---------- */
+  /* ---------- template looks: decoration and a live countdown that give each template its look ---------- */
+  /* Numbers in a scene's text become stat tiles: "312 sign-ups at $29 a month" → 312 SIGN-UPS, $29 A. */
+  function statsOf(s) {
+    if (s.stats) return s.stats;
+    const out = [],
+      re = /([$€£]?\d[\d,]*(?:\.\d+)?(?:\s?%|[kKmMx]\b)?)/g,
+      skip = /^(a|an|the|of|per|in|to|and|for|at|on|is|are|was|by)$/i;
+    let m;
+    while ((m = re.exec(s.text)) && out.length < 3) {
+      const rest = s.text
+        .slice(m.index + m[1].length)
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((w) => w.replace(/[^A-Za-z-]/g, ""))
+        .filter(Boolean);
+      const lab = rest.find((w) => !skip.test(w)) || "";
+      out.push({ v: m[1].trim(), l: lab.toUpperCase().slice(0, 10) });
+    }
+    return (s.stats = out);
+  }
+  const clockText = (sec) => {
+    const n = Math.max(0, Math.ceil(sec));
+    return Math.floor(n / 60) + ":" + String(n % 60).padStart(2, "0");
+  };
+  function num(ctx, text, x, y, size, color, align, family, weight) {
+    ctx.save();
+    ctx.font = `${weight || "800"} ${size}px ${family || FONT}`;
+    ctx.textAlign = align || "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+  function halftone(ctx, cx, cy, r, color, step) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, 6.3);
+    ctx.clip();
+    ctx.fillStyle = color;
+    for (let y = cy - r; y <= cy + r; y += step)
+      for (let x = cx - r; x <= cx + r; x += step) {
+        const d = Math.hypot(x - cx, y - cy) / r;
+        ctx.beginPath();
+        ctx.arc(x, y, Math.max(0.4, (step / 2) * (1 - d * 0.6)), 0, 6.3);
+        ctx.fill();
+      }
+    ctx.restore();
+  }
+  function ring(ctx, cx, cy, r, color, width, frac0) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + 6.2832 * frac0);
+    ctx.stroke();
+    ctx.restore();
+  }
   function label(ctx, text, x, y, size, color, align, font, spacing) {
     ctx.save();
     ctx.font = `700 ${size}px ${font || MONO}`;
@@ -831,6 +756,7 @@
     for (let x = -off; x < W; x += w) ctx.fillText(unit, x, y + h / 2);
     ctx.restore();
   }
+  /* The decoration and centrepiece (a live countdown) that give each template its look. Drawn behind the words. */
   function drawLook(ctx, p, t, s) {
     const th = p.theme,
       look = th.look;
@@ -839,14 +765,49 @@
       idx = s.index,
       no =
         String(idx + 1).padStart(2, "0") + " / " + String(n).padStart(2, "0"),
-      handle = "@" + p.handle;
+      handle = "@" + p.handle,
+      left = p.duration - t,
+      clock = clockText(left),
+      done = clamp(t / p.duration),
+      stats = statsOf(s),
+      cx = W / 2,
+      cy = 262;
     ctx.save();
     ctx.textAlign = "left";
     switch (look) {
       case "minimal": {
+        num(ctx, clock, cx, cy, 190, rgba(th.fg, 0.92), "center", FONT, "200");
+        label(
+          ctx,
+          "REMAINING",
+          cx,
+          cy + 112,
+          20,
+          rgba(th.fg, 0.45),
+          "center",
+          MONO,
+          6,
+        );
         ctx.fillStyle = th.ac;
-        ctx.fillRect(56, 150, 56, 6);
+        ctx.fillRect(cx - 28, cy + 134, 56, 5);
         label(ctx, no, 56, H - 150, 22, rgba(th.fg, 0.5), "left", MONO, 3);
+        stats.forEach((st, i) => {
+          const x = 56 + i * 210;
+          ctx.fillStyle = rgba(th.fg, 0.15);
+          ctx.fillRect(x, H - 330, 1.5, 90);
+          num(ctx, st.v, x + 18, H - 300, 44, th.fg, "left", FONT, "300");
+          label(
+            ctx,
+            st.l,
+            x + 18,
+            H - 252,
+            16,
+            rgba(th.fg, 0.5),
+            "left",
+            MONO,
+            3,
+          );
+        });
         break;
       }
       case "luxury": {
@@ -872,7 +833,7 @@
         label(
           ctx,
           "· EXCLUSIVE ·",
-          W / 2,
+          cx,
           118,
           22,
           rgba(th.ac, 0.9),
@@ -880,21 +841,77 @@
           SERIF,
           8,
         );
-        const r = 46,
-          cx = W / 2,
-          cy = H - 140;
-        ctx.strokeStyle = rgba(th.ac, 0.7);
-        ctx.lineWidth = 3;
+        /* gold clock face */
+        const r = 104;
+        const g = ctx.createRadialGradient(cx, cy, 10, cx, cy, r);
+        g.addColorStop(0, "#1a1408");
+        g.addColorStop(1, "#0c0a08");
+        ctx.fillStyle = g;
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, 6.3);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(
-          cx + Math.sin(t * 1.2) * r * 0.8,
-          cy - Math.cos(t * 1.2) * r * 0.8,
+        ctx.fill();
+        ring(ctx, cx, cy, r, th.ac, 4, 1);
+        ring(ctx, cx, cy, r - 12, rgba(th.ac, 0.4), 1.5, 1);
+        for (let i = 0; i < 60; i++) {
+          const a = (i / 60) * 6.2832,
+            l = i % 5 ? 6 : 14;
+          ctx.strokeStyle = rgba(th.ac, i % 5 ? 0.5 : 0.95);
+          ctx.lineWidth = i % 5 ? 1 : 2.5;
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.sin(a) * (r - 14), cy - Math.cos(a) * (r - 14));
+          ctx.lineTo(
+            cx + Math.sin(a) * (r - 14 - l),
+            cy - Math.cos(a) * (r - 14 - l),
+          );
+          ctx.stroke();
+        }
+        ring(ctx, cx, cy, r - 6, "#d94b3d", 5, 1 - done);
+        num(ctx, clock, cx, cy - 4, 56, th.fg, "center", SERIF, "italic 600");
+        label(
+          ctx,
+          "MINUTES",
+          cx,
+          cy + 34,
+          14,
+          rgba(th.ac, 0.85),
+          "center",
+          SERIF,
+          5,
         );
-        ctx.stroke();
+        if (idx > 0) {
+          ctx.fillStyle = "#b3261e";
+          ctx.beginPath();
+          ctx.arc(W - 120, cy + 70, 34, 0, 6.3);
+          ctx.fill();
+          ctx.strokeStyle = "#f3e7c9";
+          ctx.lineWidth = 5;
+          ctx.beginPath();
+          ctx.moveTo(W - 136, cy + 70);
+          ctx.lineTo(W - 124, cy + 82);
+          ctx.lineTo(W - 102, cy + 56);
+          ctx.stroke();
+        }
+        stats.forEach((st, i) => {
+          const y = H - 320 + i * 44;
+          ctx.strokeStyle = rgba(th.ac, 0.35);
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(110, y + 12);
+          ctx.lineTo(W - 110, y + 12);
+          ctx.stroke();
+          label(
+            ctx,
+            st.l || "FIGURE",
+            110,
+            y,
+            22,
+            rgba(th.fg, 0.75),
+            "left",
+            SERIF,
+            3,
+          );
+          label(ctx, st.v, W - 110, y, 28, th.ac, "right", SERIF, 1);
+        });
         break;
       }
       case "brutal": {
@@ -914,24 +931,88 @@
           18,
           60,
         );
+        /* yellow sticky with the hook */
+        ctx.save();
+        ctx.translate(210, cy + 4);
+        ctx.rotate(-0.04);
+        ctx.fillStyle = "#000";
+        ctx.fillRect(-150 + 8, -80 + 8, 300, 160);
         ctx.fillStyle = th.ac;
+        ctx.fillRect(-150, -80, 300, 160);
         ctx.strokeStyle = "#000";
         ctx.lineWidth = 5;
-        ctx.fillRect(56, H - 190, 190, 64);
-        ctx.strokeRect(56, H - 190, 190, 64);
-        label(ctx, no, 76, H - 148, 26, "#000", "left", MONO, 2);
+        ctx.strokeRect(-150, -80, 300, 160);
+        const hook = p.scenes[0].text.toUpperCase().split(/\s+/).slice(0, 8);
+        for (let i = 0; i < 4; i++) {
+          const line = hook.slice(i * 2, i * 2 + 2).join(" ");
+          if (line)
+            num(ctx, line, -130, -52 + i * 38, 30, "#000", "left", FONT, "900");
+        }
+        ctx.restore();
+        /* blue countdown box */
+        ctx.fillStyle = "#000";
+        ctx.fillRect(402 + 8, cy - 40 + 8, 262, 110);
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(402, cy - 40, 262, 110);
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 5;
+        ctx.strokeRect(402, cy - 40, 262, 110);
+        num(ctx, clock, 533, cy + 16, 84, th.ac2, "center", MONO, "700");
+        ctx.fillStyle = th.ac2;
+        ctx.fillRect(402, cy + 70, 262 * (1 - done), 6);
+        /* data table */
+        const rows = stats.length ? stats : [{ v: no, l: "SCENE" }];
+        rows.forEach((st, i) => {
+          const y = H - 330 + i * 52;
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(56, y, W - 112, 52);
+          ctx.strokeStyle = "#000";
+          ctx.lineWidth = 4;
+          ctx.strokeRect(56, y, W - 112, 52);
+          label(ctx, st.l || "VALUE", 76, y + 35, 22, "#000", "left", MONO, 2);
+          ctx.fillStyle = i === rows.length - 1 ? "#ff3b00" : "#000";
+          ctx.fillRect(W - 230, y, 174, 52);
+          label(ctx, st.v, W - 143, y + 36, 28, "#fff", "center", MONO, 1);
+        });
+        ctx.save();
+        ctx.translate(W - 120, H - 400);
+        ctx.rotate(0.2 + Math.sin(t * 1.4) * 0.05);
+        ctx.fillStyle = th.ac2;
+        ctx.beginPath();
+        ctx.arc(0, 0, 54, 0, 6.3);
+        ctx.fill();
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        label(ctx, "NO CODE", 0, -4, 20, "#fff", "center", MONO, 1);
+        label(ctx, "YET.", 0, 22, 20, "#fff", "center", MONO, 1);
+        ctx.restore();
         break;
       }
       case "collage": {
         const wob = Math.sin(t * 0.7) * 0.006;
         ctx.save();
-        ctx.translate(W / 2, H * 0.52);
-        ctx.rotate(-0.035 + wob);
+        ctx.translate(cx, H * 0.58);
+        ctx.rotate(-0.03 + wob);
         ctx.fillStyle = "rgba(0,0,0,0.18)";
         ctx.fillRect(-W * 0.43 + 10, -H * 0.2 + 12, W * 0.86, H * 0.4);
         ctx.fillStyle = "#f7f1e6";
         ctx.fillRect(-W * 0.43, -H * 0.2, W * 0.86, H * 0.4);
         ctx.restore();
+        /* halftone circle with the countdown */
+        ctx.fillStyle = "#f7f1e6";
+        ctx.beginPath();
+        ctx.arc(cx, cy, 112, 0, 6.3);
+        ctx.fill();
+        halftone(ctx, cx, cy, 108, "rgba(30,30,30,0.5)", 9);
+        ctx.fillStyle = "#f7f1e6";
+        ctx.beginPath();
+        ctx.arc(cx, cy, 70, 0, 6.3);
+        ctx.fill();
+        ctx.strokeStyle = th.fg;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        num(ctx, clock, cx, cy + 2, 54, th.fg, "center", SERIF, "800");
         [
           [90, 150, -0.5],
           [W - 90, 150, 0.5],
@@ -942,6 +1023,38 @@
           ctx.rotate(r);
           ctx.fillStyle = "rgba(245,197,24,0.78)";
           ctx.fillRect(-60, -16, 120, 32);
+          ctx.restore();
+        });
+        stats.forEach((st, i) => {
+          ctx.save();
+          ctx.translate(150 + i * 200, H - 300 + (i % 2) * 14);
+          ctx.rotate((i - 1) * 0.07);
+          ctx.fillStyle = "#222";
+          ctx.fillRect(-88 + 5, -34 + 5, 176, 68);
+          ctx.fillStyle = [th.ac, "#fff", th.ac2][i % 3];
+          ctx.fillRect(-88, -34, 176, 68);
+          num(
+            ctx,
+            st.v,
+            0,
+            -6,
+            34,
+            i % 3 === 2 ? "#fff" : "#1e1e1e",
+            "center",
+            SERIF,
+            "800",
+          );
+          label(
+            ctx,
+            st.l,
+            0,
+            24,
+            14,
+            i % 3 === 2 ? "#fff" : "#444",
+            "center",
+            SERIF,
+            2,
+          );
           ctx.restore();
         });
         label(
@@ -958,6 +1071,23 @@
         break;
       }
       case "wash": {
+        /* stamp ring with the countdown */
+        ctx.strokeStyle = rgba(th.ac, 0.65);
+        ctx.lineWidth = 4;
+        ctx.setLineDash([3, 9]);
+        ctx.beginPath();
+        ctx.arc(cx, cy, 112, 0, 6.3);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        const wg = ctx.createRadialGradient(cx, cy, 10, cx, cy, 100);
+        wg.addColorStop(0, rgba(th.ac2, 0.5));
+        wg.addColorStop(1, rgba(th.ac, 0.12));
+        ctx.fillStyle = wg;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 100, 0, 6.3);
+        ctx.fill();
+        ring(ctx, cx, cy, 100, rgba(th.ac, 0.85), 5, 1 - done);
+        num(ctx, clock, cx, cy, 62, th.fg, "center", SERIF, "italic 500");
         ctx.strokeStyle = rgba(th.ac2, 0.7);
         ctx.lineWidth = 7;
         ctx.lineCap = "round";
@@ -968,6 +1098,38 @@
           else ctx.lineTo(x, y);
         }
         ctx.stroke();
+        stats.forEach((st, i) => {
+          const x = 120 + i * 220,
+            y = H - 320 + (i % 2) * 22;
+          num(
+            ctx,
+            st.v,
+            x,
+            y,
+            40,
+            rgba(th.fg, 0.9),
+            "center",
+            SERIF,
+            "italic 500",
+          );
+          ctx.strokeStyle = rgba(i % 2 ? th.ac2 : th.ac, 0.7);
+          ctx.lineWidth = 5;
+          ctx.beginPath();
+          ctx.moveTo(x - 60, y + 30);
+          ctx.quadraticCurveTo(x, y + 40, x + 60, y + 28);
+          ctx.stroke();
+          label(
+            ctx,
+            st.l.toLowerCase(),
+            x,
+            y + 60,
+            18,
+            rgba(th.fg, 0.6),
+            "center",
+            SERIF,
+            1,
+          );
+        });
         for (let i = 0; i < 40; i++) {
           ctx.fillStyle = rgba(th.fg, 0.05 + rnd(i) * 0.06);
           ctx.fillRect(rnd(i + 5) * W, rnd(i + 9) * H, 2, 2);
@@ -994,6 +1156,34 @@
           MONO,
           3,
         );
+        /* countdown card */
+        ctx.fillStyle = "#f8fafc";
+        ctx.fillRect(48, 205, 250, 150);
+        label(ctx, "COUNTDOWN", 66, 238, 18, "#475569", "left", MONO, 3);
+        ctx.fillStyle = th.ac;
+        ctx.fillRect(66, 254, 214, 84);
+        num(ctx, clock, 173, 297, 70, "#fff", "center", FONT, "900");
+        /* stat boxes */
+        const boxes = stats.length ? stats : [{ v: no, l: "SCENE" }];
+        boxes.forEach((st, i) => {
+          const x = 326 + i * 118;
+          ctx.fillStyle = "#f8fafc";
+          ctx.fillRect(x, 205, 108, 150);
+          ctx.fillStyle = th.ac;
+          ctx.fillRect(x, 205, 108, 6);
+          num(
+            ctx,
+            st.v,
+            x + 54,
+            280,
+            st.v.length > 4 ? 28 : 36,
+            "#0f172a",
+            "center",
+            FONT,
+            "900",
+          );
+          label(ctx, st.l, x + 54, 330, 15, "#475569", "center", MONO, 2);
+        });
         ctx.fillStyle = th.ac;
         ctx.fillRect(0, H - 290, W, 64);
         label(
@@ -1065,14 +1255,413 @@
           MONO,
           2,
         );
+        /* T-minus ring */
         ctx.setLineDash([10, 14]);
         ctx.lineDashOffset = -t * 30;
         ctx.strokeStyle = rgba(th.ac, 0.55);
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.arc(W / 2, H - 150, 56, 0, 6.3);
+        ctx.arc(cx, cy, 118, 0, 6.3);
         ctx.stroke();
         ctx.setLineDash([]);
+        ring(ctx, cx, cy, 100, rgba(th.ac, 0.25), 8, 1);
+        ring(ctx, cx, cy, 100, th.ac2, 8, 1 - done);
+        label(
+          ctx,
+          "T-MINUS",
+          cx,
+          cy - 34,
+          16,
+          rgba(th.ac2, 0.9),
+          "center",
+          MONO,
+          4,
+        );
+        num(ctx, clock, cx, cy + 8, 56, th.fg, "center", MONO, "700");
+        label(
+          ctx,
+          "SEC " + String(Math.ceil(left)).padStart(3, "0"),
+          cx,
+          cy + 56,
+          14,
+          rgba(th.ac, 0.9),
+          "center",
+          MONO,
+          3,
+        );
+        /* signal bars */
+        const bars = stats.length ? stats.length * 3 : 8;
+        for (let i = 0; i < bars; i++) {
+          const h = 30 + 70 * (0.5 + 0.5 * Math.sin(t * 2 + i * 1.3 + idx));
+          ctx.fillStyle = rgba(i % 3 === 0 ? th.ac2 : th.ac, 0.75);
+          ctx.fillRect(90 + i * 26, H - 190 - h, 16, h);
+        }
+        stats.forEach((st, i) => {
+          const x = W - 90 - (stats.length - i) * 150;
+          label(
+            ctx,
+            st.l || "VALUE",
+            x,
+            H - 250,
+            14,
+            rgba(th.ac2, 0.8),
+            "left",
+            MONO,
+            2,
+          );
+          num(ctx, st.v, x, H - 215, 34, th.fg, "left", MONO, "700");
+        });
+        break;
+      }
+      case "comic": {
+        /* thick panel border, halftone corners, a starburst with the countdown, speech-bubble stats */
+        ctx.strokeStyle = "#111";
+        ctx.lineWidth = 16;
+        ctx.strokeRect(18, 18, W - 36, H - 36);
+        halftone(ctx, 0, 0, 260, "rgba(229,55,43,0.35)", 14);
+        halftone(ctx, W, H, 300, "rgba(37,99,235,0.3)", 14);
+        const spikes = 14,
+          pulse = 1 + 0.04 * Math.sin(t * 6);
+        ctx.beginPath();
+        for (let i = 0; i < spikes * 2; i++) {
+          const a = (i / (spikes * 2)) * 6.2832 + t * 0.2,
+            r = (i % 2 ? 100 : 142) * pulse;
+          ctx[i ? "lineTo" : "moveTo"](
+            cx + Math.cos(a) * r,
+            cy + Math.sin(a) * r,
+          );
+        }
+        ctx.closePath();
+        ctx.fillStyle = "#111";
+        ctx.save();
+        ctx.translate(7, 7);
+        ctx.fill();
+        ctx.restore();
+        ctx.fillStyle = th.ac;
+        ctx.fill();
+        ctx.strokeStyle = "#111";
+        ctx.lineWidth = 6;
+        ctx.stroke();
+        ctx.save();
+        ctx.lineWidth = 9;
+        ctx.strokeStyle = "#111";
+        ctx.font = `900 72px ${FONT}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.strokeText(clock, cx, cy + 2);
+        ctx.fillStyle = "#fff";
+        ctx.fillText(clock, cx, cy + 2);
+        ctx.restore();
+        label(ctx, "TICK TOCK!", cx, cy - 96, 22, "#111", "center", FONT, 3);
+        stats.forEach((st, i) => {
+          const x = 130 + i * 230,
+            y = H - 320 + (i % 2) * 20;
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate((i - 1) * 0.05);
+          ctx.fillStyle = "#111";
+          rr(ctx, -92 + 6, -44 + 6, 184, 88, 22);
+          ctx.fill();
+          ctx.fillStyle = "#fff";
+          rr(ctx, -92, -44, 184, 88, 22);
+          ctx.fill();
+          ctx.strokeStyle = "#111";
+          ctx.lineWidth = 5;
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(-30, 44);
+          ctx.lineTo(-52, 74);
+          ctx.lineTo(-4, 44);
+          ctx.fillStyle = "#fff";
+          ctx.fill();
+          ctx.stroke();
+          num(ctx, st.v, 0, -8, 40, "#111", "center", FONT, "900");
+          label(ctx, st.l, 0, 30, 16, "#444", "center", FONT, 2);
+          ctx.restore();
+        });
+        break;
+      }
+      case "neon": {
+        /* glowing tube frame, neon digits, outlined pills */
+        const glow = (color, blur) => {
+          ctx.shadowColor = color;
+          ctx.shadowBlur = blur;
+        };
+        ctx.save();
+        glow(th.ac, 24);
+        ctx.strokeStyle = th.ac;
+        ctx.lineWidth = 6;
+        rr(ctx, 40, 40, W - 80, H - 80, 46);
+        ctx.stroke();
+        glow(th.ac2, 18);
+        ctx.strokeStyle = th.ac2;
+        ctx.lineWidth = 3;
+        rr(ctx, 60, 60, W - 120, H - 120, 34);
+        ctx.stroke();
+        const flick = 0.85 + 0.15 * Math.sin(t * 17) * Math.sin(t * 3.1);
+        ctx.globalAlpha = flick;
+        glow(th.ac, 30);
+        ctx.font = `800 120px ${FONT}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.strokeStyle = th.ac;
+        ctx.lineWidth = 5;
+        ctx.strokeText(clock, cx, cy);
+        ctx.fillStyle = rgba("#ffffff", 0.9);
+        ctx.fillText(clock, cx, cy);
+        ctx.globalAlpha = 1;
+        glow(th.ac2, 14);
+        ctx.strokeStyle = th.ac2;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(cx - 120, cy + 86);
+        ctx.lineTo(cx - 120 + 240 * (1 - done), cy + 86);
+        ctx.stroke();
+        stats.forEach((st, i) => {
+          const x = 70 + i * 205,
+            c = i % 2 ? th.ac2 : th.ac;
+          glow(c, 14);
+          ctx.strokeStyle = c;
+          ctx.lineWidth = 3.5;
+          rr(ctx, x, H - 330, 190, 104, 28);
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+          num(ctx, st.v, x + 95, H - 292, 38, "#fff", "center", FONT, "800");
+          label(ctx, st.l, x + 95, H - 246, 15, c, "center", MONO, 3);
+        });
+        ctx.restore();
+        break;
+      }
+      case "glass": {
+        /* drifting colour orbs under frosted-glass cards */
+        [
+          [th.ac, 0.4, 0.28, 280],
+          [th.ac2, 0.7, 0.62, 320],
+          ["#f472b6", 0.2, 0.82, 240],
+        ].forEach(([c, fx, fy, r], i) => {
+          const x = W * fx + Math.sin(t * 0.5 + i * 2) * 60,
+            y = H * fy + Math.cos(t * 0.4 + i) * 70,
+            g = ctx.createRadialGradient(x, y, 0, x, y, r);
+          g.addColorStop(0, rgba(c, 0.55));
+          g.addColorStop(1, rgba(c, 0));
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, W, H);
+        });
+        const card = (x, y, w, h, r, a) => {
+          rr(ctx, x, y, w, h, r);
+          ctx.fillStyle = `rgba(255,255,255,${a})`;
+          ctx.fill();
+          ctx.strokeStyle = "rgba(255,255,255,0.28)";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          const g = ctx.createLinearGradient(x, y, x, y + h * 0.5);
+          g.addColorStop(0, "rgba(255,255,255,0.16)");
+          g.addColorStop(1, "rgba(255,255,255,0)");
+          rr(ctx, x, y, w, h * 0.5, r);
+          ctx.fillStyle = g;
+          ctx.fill();
+        };
+        card(60, 190, W - 120, 140, 40, 0.1);
+        num(ctx, clock, cx, 262, 96, "#fff", "center", FONT, "700");
+        label(
+          ctx,
+          "REMAINING",
+          cx,
+          312,
+          16,
+          "rgba(255,255,255,0.6)",
+          "center",
+          MONO,
+          6,
+        );
+        ctx.fillStyle = rgba(th.ac2, 0.9);
+        rr(ctx, 100, 336, (W - 200) * (1 - done), 6, 3);
+        ctx.fill();
+        card(48, 392, W - 96, 560, 54, 0.06);
+        stats.forEach((st, i) => {
+          const x = 60 + i * 206;
+          card(x, H - 330, 190, 110, 30, 0.12);
+          num(ctx, st.v, x + 95, H - 290, 40, "#fff", "center", FONT, "700");
+          label(
+            ctx,
+            st.l,
+            x + 95,
+            H - 244,
+            15,
+            "rgba(255,255,255,0.65)",
+            "center",
+            MONO,
+            3,
+          );
+        });
+        break;
+      }
+      case "term": {
+        /* a terminal window running the countdown */
+        const x0 = 40,
+          y0 = 130,
+          w0 = W - 80,
+          h0 = H - 340;
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        rr(ctx, x0 + 8, y0 + 10, w0, h0, 22);
+        ctx.fill();
+        ctx.fillStyle = "#0d1117";
+        rr(ctx, x0, y0, w0, h0, 22);
+        ctx.fill();
+        ctx.strokeStyle = "#30363d";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = "#161b22";
+        ctx.fillRect(x0 + 1, y0 + 1, w0 - 2, 52);
+        ["#ff5f56", "#ffbd2e", "#27c93f"].forEach((c, i) => {
+          ctx.fillStyle = c;
+          ctx.beginPath();
+          ctx.arc(x0 + 34 + i * 30, y0 + 27, 9, 0, 6.3);
+          ctx.fill();
+        });
+        label(
+          ctx,
+          "~/studio — zsh",
+          cx,
+          y0 + 34,
+          20,
+          "#8b949e",
+          "center",
+          MONO,
+          1,
+        );
+        label(
+          ctx,
+          "$ countdown --remaining",
+          x0 + 30,
+          y0 + 100,
+          22,
+          "#8b949e",
+          "left",
+          MONO,
+          1,
+        );
+        num(ctx, clock, x0 + 30, cy + 30, 110, th.ac, "left", MONO, "700");
+        label(
+          ctx,
+          "progress " +
+            "█".repeat(Math.round(done * 16)) +
+            "░".repeat(16 - Math.round(done * 16)),
+          x0 + 30,
+          cy + 120,
+          20,
+          th.ac2,
+          "left",
+          MONO,
+          0,
+        );
+        stats.forEach((st, i) => {
+          label(
+            ctx,
+            `> ${(st.l || "value").toLowerCase()} = ${st.v}`,
+            x0 + 30,
+            y0 + h0 - 110 + i * 34,
+            24,
+            i % 2 ? th.ac2 : th.fg,
+            "left",
+            MONO,
+            0,
+          );
+        });
+        if (Math.floor(t * 2) % 2 === 0) {
+          ctx.fillStyle = th.ac;
+          ctx.fillRect(x0 + 30, y0 + h0 - 38, 14, 26);
+        }
+        break;
+      }
+      case "notes": {
+        /* grid paper with pinned sticky notes */
+        ctx.strokeStyle = "rgba(60,90,160,0.12)";
+        ctx.lineWidth = 1.5;
+        for (let x = 0; x <= W; x += 48) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, H);
+          ctx.stroke();
+        }
+        for (let y = 0; y <= H; y += 48) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(W, y);
+          ctx.stroke();
+        }
+        const note = (x, y, w, h, rot, color) => {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(rot + Math.sin(t * 0.8 + x) * 0.006);
+          ctx.fillStyle = "rgba(0,0,0,0.16)";
+          ctx.fillRect(-w / 2 + 6, -h / 2 + 9, w, h);
+          ctx.fillStyle = color;
+          ctx.fillRect(-w / 2, -h / 2, w, h);
+          ctx.fillStyle = "rgba(0,0,0,0.05)";
+          ctx.fillRect(-w / 2, h / 2 - 22, w, 22);
+          ctx.fillStyle = "#e11d48";
+          ctx.beginPath();
+          ctx.arc(0, -h / 2 + 12, 9, 0, 6.3);
+          ctx.fill();
+          ctx.restore();
+        };
+        note(cx, cy + 6, 300, 190, -0.03, "#ffd43b");
+        num(
+          ctx,
+          clock,
+          cx,
+          cy + 14,
+          96,
+          th.fg,
+          "center",
+          th.face ? th.face[1] : FONT,
+          "800",
+        );
+        ctx.strokeStyle = "#e11d48";
+        ctx.lineWidth = 5;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.ellipse(
+          cx,
+          cy + 14,
+          130,
+          62,
+          -0.04,
+          0,
+          6.3 * clamp((t - s.start) / 0.8, 0, 1),
+        );
+        ctx.stroke();
+        stats.forEach((st, i) => {
+          const colors = [th.ac2, "#8ecae6", "#b5e48c"];
+          note(120 + i * 240, H - 290, 200, 130, (i - 1) * 0.07, colors[i % 3]);
+          ctx.save();
+          ctx.translate(120 + i * 240, H - 290);
+          ctx.rotate((i - 1) * 0.07);
+          num(
+            ctx,
+            st.v,
+            0,
+            -6,
+            44,
+            "#2b2b2b",
+            "center",
+            th.face ? th.face[1] : FONT,
+            "800",
+          );
+          label(
+            ctx,
+            st.l.toLowerCase(),
+            0,
+            40,
+            18,
+            "#444",
+            "center",
+            th.face ? th.face[1] : FONT,
+            1,
+          );
+          ctx.restore();
+        });
         break;
       }
       case "vapor": {
@@ -1087,7 +1676,7 @@
         ctx.fillStyle = sg;
         ctx.globalAlpha = 0.5;
         ctx.beginPath();
-        ctx.arc(W / 2, hy - 20, 250, 0, 6.3);
+        ctx.arc(cx, hy - 20, 250, 0, 6.3);
         ctx.fill();
         ctx.restore();
         ctx.fillStyle = "#1b0a28";
@@ -1096,8 +1685,8 @@
         ctx.lineWidth = 2;
         for (let i = -8; i <= 8; i++) {
           ctx.beginPath();
-          ctx.moveTo(W / 2 + i * 22, hy);
-          ctx.lineTo(W / 2 + i * 150, H);
+          ctx.moveTo(cx + i * 22, hy);
+          ctx.lineTo(cx + i * 150, H);
           ctx.stroke();
         }
         for (let k = 0; k < 8; k++) {
@@ -1108,6 +1697,7 @@
           ctx.lineTo(W, y);
           ctx.stroke();
         }
+        /* title bar and the countdown window */
         ctx.fillStyle = "#c0c0d8";
         ctx.fillRect(40, 130, W - 80, 44);
         ctx.fillStyle = th.ac2;
@@ -1117,6 +1707,53 @@
           ctx.fillStyle = c;
           ctx.fillRect(W - 60 - i * 30, 142, 20, 20);
         });
+        ctx.fillStyle = "#c0c0d8";
+        ctx.fillRect(cx - 130, 200, 260, 120);
+        ctx.fillStyle = "#1b0a28";
+        ctx.fillRect(cx - 120, 212, 240, 96);
+        num(ctx, clock, cx, 262, 76, th.ac, "center", MONO, "700");
+        /* VALIDATED dialog on later scenes */
+        if (idx > 0) {
+          const y = hy + 70;
+          ctx.fillStyle = "#c0c0d8";
+          ctx.fillRect(cx - 190, y, 380, 110);
+          ctx.fillStyle = th.ac;
+          ctx.fillRect(cx - 190, y, 380, 26);
+          label(
+            ctx,
+            "VALIDATED",
+            cx - 176,
+            y + 19,
+            16,
+            "#fff",
+            "left",
+            MONO,
+            2,
+          );
+          ctx.fillStyle = "#14b8a6";
+          ctx.beginPath();
+          ctx.arc(cx - 140, y + 68, 22, 0, 6.3);
+          ctx.fill();
+          ctx.strokeStyle = "#fff";
+          ctx.lineWidth = 5;
+          ctx.beginPath();
+          ctx.moveTo(cx - 150, y + 68);
+          ctx.lineTo(cx - 142, y + 77);
+          ctx.lineTo(cx - 128, y + 58);
+          ctx.stroke();
+          const txt = stats.map((x) => x.v).join(" · ") || "ALL SYSTEMS GO";
+          label(
+            ctx,
+            txt.slice(0, 24),
+            cx - 100,
+            y + 76,
+            20,
+            "#1b0a28",
+            "left",
+            MONO,
+            1,
+          );
+        }
         break;
       }
     }
@@ -1388,6 +2025,7 @@
       fx = p.fx,
       th = p.theme,
       light = lum(th.bg) > 0.6;
+    HAS_LOOK = !!th.look;
     FACE = th.face || ["800", FONT];
     const s =
       p.scenes.find((sc) => t >= sc.start && t < sc.start + sc.dur) ||
@@ -1437,7 +2075,8 @@
       ctx.stroke();
     }
     drawParticles(ctx, p, t, st);
-    if (s.motif) drawMotif(ctx, s.motif, W / 2, H * 0.22, 190, st, t, th);
+    if (s.motif && !th.look)
+      drawMotif(ctx, s.motif, W / 2, H * 0.22, 190, st, t, th);
     ctx.restore();
 
     /* text group */
@@ -1851,12 +2490,6 @@
     formatById,
     themesFor,
     themeByName,
-    checkTemplate,
-    addTemplates,
-    removeTemplates,
-    importedTemplates,
-    STYLES,
-    LOOKS,
     DEFAULT_FX,
     FX_OPTIONS,
     PRESETS,

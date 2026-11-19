@@ -155,42 +155,31 @@ cat > "{tmp}/last_prompt"; echo "$@" > "{tmp}/last_args"; echo "${{ANTHROPIC_API
         check("download refuses a look-alike host", "only downloads" in str(attempt("https://cdninstagram.com.evil.example/a.mp4", "https://cdninstagram.com.evil.example/a.mp4", b"V")))
         check("download refuses a redirect to another host", "only downloads" in str(attempt("https://a.fbcdn.net/a.mp4", "https://evil.example/a.mp4", b"V")))
         check("download refuses an oversized video", "too large" in str(attempt("https://a.fbcdn.net/a.mp4", "https://a.fbcdn.net/a.mp4", b"x" * 100, limit=10)))
-        # Composio proxy: only read-only Instagram tools, validated inputs, key stays server-side
-        calls = []
-        real_call, real_key = srv.composio_call, srv.composio_key
-        srv.composio_key = lambda: "test-key"
-        def fake(path, payload=None):
-            calls.append((path, payload))
-            if path.startswith("/connected_accounts?"):
-                return {"items": [{"id": "ca_abc123", "alias": "me_ig", "user_id": "u1", "status": "ACTIVE"}]}
-            if path.startswith("/auth_configs"):
-                return {"items": [{"id": "ac_1", "status": "ENABLED"}]}
-            if path.startswith("/connected_accounts/link"):
-                return {"redirect_url": "https://connect.composio.dev/link/x"}
-            return {"successful": True, "data": {"data": [], "followers_count": 5}}
-        srv.composio_call = fake
-        def refuses(body):
-            try:
-                srv.composio_execute(body); return False
-            except RuntimeError:
-                return True
+        # Composio sign-in relay: fixed fields to a fixed address, this site only
+        sent = []
+        class FakeResp:
+            status = 200
+            def __init__(self, b): self.b = b
+            def read(self): return self.b
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+        srv.urllib.request.urlopen = lambda r, timeout=0: (sent.append((r.full_url, r.data)), FakeResp(b'{"access_token":"at"}'))[1]
         try:
-            st_ = srv.composio_status()
-            check("composio status lists connected accounts", st_["configured"] and st_["accounts"][0]["id"] == "ca_abc123" and "key" not in json.dumps(st_).lower().replace("api_key", ""))
-            check("composio link returns the hosted sign-in url", srv.composio_link("http://localhost:5174")["url"].startswith("https://connect.composio.dev/"))
-            ok_body = {"tool": "INSTAGRAM_GET_USER_INFO", "account": "ca_abc123", "userId": "u1", "arguments": {"ig_user_id": "me"}}
-            check("composio runs an allowed read-only tool", srv.composio_execute(ok_body)["data"]["followers_count"] == 5 and calls[-1][1]["connected_account_id"] == "ca_abc123")
-            check("composio refuses write tools", refuses(dict(ok_body, tool="INSTAGRAM_CREATE_MEDIA_CONTAINER")) and refuses(dict(ok_body, tool="INSTAGRAM_DELETE_COMMENT")))
-            check("composio refuses a bad account id", refuses(dict(ok_body, account="../x")) and refuses(dict(ok_body, account="")))
-            check("composio refuses bad arguments", refuses(dict(ok_body, arguments=["me"])) and refuses(dict(ok_body, arguments=None)))
+            code, body_ = srv.oauth_relay("token", b"grant_type=authorization_code&code=c&redirect_uri=http%3A%2F%2Flocalhost%3A5174%2F&client_id=k&code_verifier=v&client_secret=leak", "http://localhost:5174")
+            check("relay forwards a token exchange to Composio only", code == 200 and sent[-1][0] == "https://login.composio.dev/oauth2/token" and b"client_secret" not in sent[-1][1] and b"code=c" in sent[-1][1])
+            def refused(kind, raw):
+                try:
+                    srv.oauth_relay(kind, raw, "http://localhost:5174"); return False
+                except RuntimeError:
+                    return True
+            check("relay refuses other grant types", refused("token", b"grant_type=password&username=a"))
+            check("relay refuses redirect addresses on other sites", refused("token", b"grant_type=authorization_code&redirect_uri=https%3A%2F%2Fevil.example%2F") and refused("register", b'{"redirect_uris":["https://evil.example/"]}'))
+            srv.oauth_relay("register", b'{"redirect_uris":["http://localhost:5174/"],"token_endpoint_auth_method":"client_secret_basic"}', "http://localhost:5174")
+            check("relay always registers a public client", json.loads(sent[-1][1])["token_endpoint_auth_method"] == "none" and sent[-1][0].endswith("/oauth2/register"))
         finally:
-            srv.composio_call, srv.composio_key = real_call, real_key
-        st, body, _ = req(base, "/api/composio/status", "GET", H)
-        check("helper reports Composio is not configured without a key", st == 200 and json.loads(body).get("configured") is False, (st, body[:120]))
-        st, _, _ = req(base, "/api/composio/status")
-        check("composio status needs the helper token", st == 401, st)
-        st, _, _ = req(base, "/worker.js")
-        check("helper does not serve worker.js", st == 404, st)
+            srv.urllib.request.urlopen = real_urlopen
+        st, _, _ = req(base, "/api/oauth/token", "POST", {}, b"grant_type=refresh_token")
+        check("relay needs the helper token", st == 401, st)
         if sess.get("edge"):
             st, audio, hdr = req(base, "/api/tts/edge", "POST", H, b'{"text":"Testing one two.","voice":"en-US-AriaNeural","rate":"+0%"}')
             check("Edge speech returns audio", st == 200 and len(audio) > 2000 and hdr.get("Content-Type") == "audio/mpeg", (st, len(audio)))

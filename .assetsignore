@@ -1,5 +1,4 @@
 # Not part of the website: kept out of the deployed assets
-worker.js
 wrangler.jsonc
 .assetsignore
 package.json
@@ -14,3 +13,4 @@ node_modules
 .gitignore
 .DS_Store
 Screenshot*
+worker.js
