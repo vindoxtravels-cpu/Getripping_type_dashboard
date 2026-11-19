@@ -185,6 +185,25 @@ cat > "{tmp}/last_prompt"; echo "$@" > "{tmp}/last_args"; echo "${{ANTHROPIC_API
         for _ in range(6):
             st, _, _ = req(base, "/api/pair", "POST", dict(LOCALH, Origin=SITE, **{"Content-Type": "application/json", "Sec-Fetch-Site": "cross-site"}), b'{"code":"AAAAAAAA"}')
         check("repeated wrong codes lock pairing", st == 429, st)
+        # "Allow this site" page: the helper's own page hands a token to the site that opened it
+        st, page, hdr = req(base, "/authorize?origin=https://new.example")
+        check("the allow page is served by the helper and cannot be framed", st == 200 and b"Let this site use your Claude" in page and hdr.get("X-Frame-Options") == "DENY", (st, hdr))
+        own = {"Origin": f"http://localhost:{port}", "Content-Type": "application/json"}
+        st, _, _ = req(base, "/api/authorize/grant", "POST", own, b'{"origin":"https://new.example"}')
+        check("allowing a site needs the helper token", st == 401, st)
+        st, _, _ = req(base, "/api/authorize/grant", "POST", dict(own, **{"X-Studio-Token": sess["token"]}), b'{"origin":"http://plain-http.example"}')
+        check("only https sites can be allowed", st == 400, st)
+        st, _, _ = req(base, "/api/authorize/grant", "POST", dict(LOCALH, Origin=SITE, **{"Content-Type": "application/json", "X-Studio-Token": sess["token"], "Sec-Fetch-Site": "cross-site"}), b'{"origin":"https://new.example"}')
+        check("a site cannot allow itself", st == 403, st)
+        st, _, _ = req(base, "/api/session", "OPTIONS", dict(LOCALH, Origin="https://new.example"))
+        check("before it is allowed a site is refused", st == 403, st)
+        st, body_, _ = req(base, "/api/authorize/grant", "POST", dict(own, **{"X-Studio-Token": sess["token"]}), b'{"origin":"https://new.example"}')
+        check("the helper's own page can allow a site", st == 200 and json.loads(body_).get("ok") is True, (st, body_))
+        st, _, hdr = req(base, "/api/session", "OPTIONS", dict(LOCALH, Origin="https://new.example"))
+        check("an allowed site is accepted straight away", st == 204 and hdr.get("Access-Control-Allow-Origin") == "https://new.example", (st, hdr))
+        sites_file = ROOT / "bridge" / ".sites"
+        if sites_file.exists():
+            sites_file.write_text("\n".join(l for l in sites_file.read_text().split() if l != "https://new.example") + "\n")  # leave no trace of the test
         # Composio sign-in relay: fixed fields to a fixed address, this site only
         sent = []
         class FakeResp:

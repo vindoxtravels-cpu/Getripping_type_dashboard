@@ -128,6 +128,59 @@ const H = window.Helper;
       sessionStorage.getItem("rs_helper_token") === null,
   );
 
+  /* one-click connect: the helper's own page hands the token back */
+  H.unpair();
+  const listeners = [];
+  window.addEventListener = (t, f) => listeners.push([t, f]);
+  window.removeEventListener = (t, f) => {
+    const i = listeners.findIndex((l) => l[1] === f);
+    if (i >= 0) listeners.splice(i, 1);
+  };
+  let opened = "";
+  window.open = (url) => ((opened = url), { closed: false });
+  badToken = false;
+  const pending = H.connect();
+  check(
+    "connect opens the helper's allow page for this site",
+    opened ===
+      "http://127.0.0.1:5174/authorize?origin=" +
+        encodeURIComponent("https://studio.workers.dev"),
+    opened,
+  );
+  const fire = (origin, data) =>
+    listeners
+      .filter((l) => l[0] === "message")
+      .forEach(([, f]) => f({ origin, data }));
+  fire("https://evil.example", {
+    type: "studio-helper-token",
+    token: "STOLEN",
+  });
+  fire("http://127.0.0.1:5174", { type: "other", token: "X" });
+  check(
+    "messages from other sites or of other kinds are ignored",
+    sessionStorage.getItem("rs_helper_token") === null,
+  );
+  fire("http://127.0.0.1:5174", { type: "studio-helper-token", token: "T1" });
+  const cs = await pending;
+  check(
+    "the token from the helper's page connects the site",
+    cs.available &&
+      cs.paired &&
+      sessionStorage.getItem("rs_helper_token") === "T1",
+  );
+  check(
+    "the listener is removed afterwards",
+    listeners.filter((l) => l[0] === "message").length === 0,
+  );
+  window.open = () => null;
+  let blocked = null;
+  try {
+    await H.connect();
+  } catch (e) {
+    blocked = e;
+  }
+  check("a blocked pop-up is explained", blocked && blocked.popup === true);
+
   console.log(failed ? `\n${failed} failed` : "\nall pairing checks passed");
   process.exit(failed ? 1 : 0);
 })();

@@ -66,6 +66,60 @@
     })();
     return probing;
   }
+  /** Hosted site: open the helper's own "Allow this site?" page and wait for it to hand back a token. */
+  function connect() {
+    return new Promise((resolve, reject) => {
+      const win = window.open(
+        BASE + "/authorize?origin=" + encodeURIComponent(location.origin),
+        "studio-helper",
+        "width=520,height=560",
+      );
+      if (!win) {
+        reject(
+          new HelperError(
+            "The pop-up was blocked. Allow pop-ups for this site and try again.",
+            {
+              popup: true,
+            },
+          ),
+        );
+        return;
+      }
+      let done = false;
+      const finish = (fn, v) => {
+        if (done) return;
+        done = true;
+        window.removeEventListener("message", onMsg);
+        clearInterval(timer);
+        fn(v);
+      };
+      const onMsg = (e) => {
+        if (
+          e.origin !== BASE ||
+          !e.data ||
+          e.data.type !== "studio-helper-token" ||
+          !e.data.token
+        )
+          return;
+        store(e.data.token);
+        session(true).then((s) => finish(resolve, s));
+      };
+      window.addEventListener("message", onMsg);
+      const t0 = Date.now();
+      const timer = setInterval(() => {
+        if (win.closed && Date.now() - t0 > 1500)
+          finish(
+            reject,
+            new HelperError(
+              "The window was closed before the site was allowed. If it showed an error page, the helper isn't running: on your computer run ./bridge/start.sh",
+              { offline: true },
+            ),
+          );
+        else if (Date.now() - t0 > 120000)
+          finish(reject, new HelperError("That took too long. Try again."));
+      }, 500);
+    });
+  }
   /** Pair this deployed site with the helper using the code shown in the helper's terminal. */
   async function pair(code) {
     let r;
@@ -153,6 +207,7 @@
     call,
     upload,
     pair,
+    connect,
     unpair,
     HelperError,
     base: BASE,

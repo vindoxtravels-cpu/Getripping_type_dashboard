@@ -123,15 +123,15 @@ What works on the deployed site, and what needs your computer:
 | Voice-over                          | ElevenLabs key                                                                                 | Edge voices or ElevenLabs       |
 | Instagram insights                  | Yes: sign in with Composio                                                                     | Yes: sign in with Composio      |
 
-### Sign in with Claude on the deployed site
+### Sign in with Claude (desktop, web and the deployed site)
 
-A website can't sign in to Claude by itself: Anthropic's sign-in is for Claude Code and its own apps, and a hosted page must use an API key. What does work is your own Claude Code on your own computer, reached through the helper:
+Studio signs in with your Claude account the way tools like OpenClaw-style agents do: by driving **Claude Code on your own computer** through the helper, never by copying a Claude login into a web page (Anthropic doesn't allow that for third-party apps, and a website can't hold your Claude session safely).
 
-1. On your computer, in the project folder: `./bridge/start.sh --allow https://your-site.workers.dev` (once; the site is remembered in `bridge/.sites`).
-2. The helper prints a **pairing code**. Open the deployed site, go to **Claude → Sign in**, enter the code and press **Pair**.
-3. Claude Code, Edge voices, ffmpeg frames and speech-to-text now work from the deployed site, using your Claude plan. No API key.
+- **On your computer (`http://localhost:5174`):** if you are already signed in to the **Claude desktop app** (or Claude Code), Studio detects it: the panel shows "Signed in as …". Otherwise press **Sign in with Claude (web)**: it runs Claude Code's own login, which opens claude.ai in your browser. Press **Already signed in? Check again** after signing in elsewhere.
+- **On the deployed site:** press **Connect Claude**. A small window from the helper on your computer opens and asks "Let this site use your Claude?"; press **Allow**. The site is then remembered (in `bridge/.sites`) and gets a token for this tab only. No code to type and no flags to pass: you only need the helper running (`./bridge/start.sh`). (A pairing code, `./bridge/start.sh --allow https://your-site`, still works as a fallback.)
+- Then Claude Code, Edge voices, ffmpeg frames and speech-to-text work from the deployed site using your Claude plan. No API key.
 
-Safety: only sites you allow can reach the helper; a site gets no token until you enter the code (a new random code every time the helper starts, five wrong tries lock it); everything else still needs that token; and the helper still listens on `127.0.0.1` only. The token lives in that tab's `sessionStorage`. It needs the helper running whenever you use it, and it works in Chrome, Edge and Firefox (Chrome may ask to allow access to devices on your network); Safari blocks a secure page from reaching the helper. With no helper, use an API key.
+Safety: only a site you click **Allow** for can reach the helper; the Allow page can only be opened by the helper itself and cannot be framed; the token is handed to that site's window only (`postMessage` to its exact origin) and lives in that tab's `sessionStorage`; everything else still needs the token; and the helper listens on `127.0.0.1` only. The helper has to be running whenever you use it, and it works in Chrome, Edge and Firefox (Chrome may ask to allow access to devices on your network); Safari blocks a secure page from reaching the helper. With no helper, use an API key.
 
 ## Cartoon humour and your own clips
 

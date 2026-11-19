@@ -59,6 +59,50 @@ def load_sites():
     return out
 
 
+AUTHORIZE_HTML = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connect Claude</title>
+<style>
+  body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0b14;color:#f4f4fb;font:16px/1.5 -apple-system,system-ui,sans-serif}
+  main{max-width:440px;margin:24px;padding:28px;border:1px solid #2a2a40;border-radius:20px;background:#14141f}
+  h1{margin:0 0 8px;font-size:22px} p{color:#a8a8c4;margin:8px 0} code{background:#23233a;padding:2px 8px;border-radius:8px;color:#fff;word-break:break-all}
+  .row{display:flex;gap:10px;margin-top:20px} button{flex:1;font:inherit;font-weight:600;padding:12px 16px;border-radius:12px;border:1px solid #34344f;background:#1d1d30;color:#fff;cursor:pointer}
+  button.go{background:linear-gradient(135deg,#8b5cf6,#ec4899);border:0} .bad{color:#fb7185} .ok{color:#34d399}
+</style></head><body><main>
+<h1>Let this site use your Claude?</h1>
+<p>The site <code id="site">…</code> wants to use Claude Code on this computer, signed in with your Claude account, to write and direct your videos.</p>
+<p>It will not see your password or your Claude login. It can only send text and pictures for Claude to answer, and you can stop it any time by closing the helper.</p>
+<p id="msg"></p>
+<div class="row"><button id="no" type="button">Cancel</button><button id="yes" class="go" type="button">Allow</button></div>
+</main>
+<script>
+(() => {
+  const origin = new URLSearchParams(location.search).get("origin") || "";
+  const okOrigin = /^https:\\/\\/[A-Za-z0-9.-]+(:\\d{1,5})?$/.test(origin);
+  const msg = document.getElementById("msg");
+  document.getElementById("site").textContent = okOrigin ? origin : "(unknown site)";
+  const say = (t, c) => { msg.textContent = t; msg.className = c || ""; };
+  document.getElementById("no").onclick = () => window.close();
+  if (!okOrigin || !window.opener) {
+    document.getElementById("yes").disabled = true;
+    say("Open this from the site's “Connect Claude” button.", "bad");
+    return;
+  }
+  document.getElementById("yes").onclick = async () => {
+    try {
+      const s = await (await fetch("/api/session", { cache: "no-store" })).json();
+      const r = await fetch("/api/authorize/grant", { method: "POST", headers: { "content-type": "application/json", "X-Studio-Token": s.token }, body: JSON.stringify({ origin }) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Could not allow that site.");
+      window.opener.postMessage({ type: "studio-helper-token", token: s.token }, origin);
+      say("Connected. You can close this window.", "ok");
+      setTimeout(() => window.close(), 700);
+    } catch (e) { say(e.message, "bad"); }
+  };
+})();
+</script></body></html>"""
+
+
 SITES = load_sites()
 PAIR_CODE = secrets.token_hex(4).upper()  # shown in this terminal each time the helper starts
 PAIR_FAILS = {"n": 0}
@@ -455,6 +499,21 @@ class Handler(BaseHTTPRequestHandler):
             return self._api_get(path)
         if self.headers.get("Host", "") not in HOSTS:
             return self._json(403, {"error": "Wrong host."})
+        if path == "/authorize":
+            body = AUTHORIZE_HTML.encode()
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Frame-Options", "DENY")
+                self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            return
         rel = unquote(path).lstrip("/") or "index.html"
         target = (ROOT / rel).resolve()
         parts = target.relative_to(ROOT).parts if ROOT in target.parents or target == ROOT else None
@@ -466,6 +525,26 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if not path.startswith("/api/"):
             return self._json(404, {"error": "Not found."})
+        if path == "/api/authorize/grant":
+            if not self._guard():
+                return
+            if self.headers.get("Origin") not in ORIGINS:
+                return self._json(403, {"error": "Only the helper's own page can allow a site."})
+            try:
+                origin = str(self._body(2000).get("origin", "")).rstrip("/")
+            except Exception:  # noqa: BLE001
+                return self._json(400, {"error": "Bad request."})
+            if not SITE_RE.match(origin):
+                return self._json(400, {"error": "That is not a valid https site address."})
+            SITES.add(origin)
+            try:
+                f = Path(__file__).resolve().parent / ".sites"
+                have = set(f.read_text().split()) if f.exists() else set()
+                have.add(origin)
+                f.write_text("\n".join(sorted(have)) + "\n")
+            except OSError:
+                pass  # allowed for this run even if it can't be remembered
+            return self._json(200, {"ok": True, "origin": origin})
         if path == "/api/pair":
             if not self._guard(need_token=False):
                 return

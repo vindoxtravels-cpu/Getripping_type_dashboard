@@ -3802,22 +3802,42 @@
       box = $("#aiSignin");
     let html;
     if (AI.hosted && !st.helper) {
-      html = !st.reachable
-        ? `<div class="state off">${svg("link", 16)}<div><b>Connect to Claude Code on your computer</b><span>This site can use your signed-in Claude Code through the helper. On your computer, in the project folder, run <code>./bridge/start.sh --allow ${esc(location.origin)}</code>, then press Check again. Works in Chrome, Edge and Firefox; Safari blocks it. No API key needed.</span></div></div><div class="row end"><button type="button" class="btn" id="aiHelperCheck">Check again</button></div>`
-        : `<div class="state">${svg("key", 16)}<div><b>Pair this site with your helper</b><span>Enter the pairing code shown in the terminal where the helper is running. It changes every time the helper starts.</span></div></div>
-    <label>Pairing code<input id="aiPairCode" type="text" autocomplete="off" spellcheck="false" placeholder="XXXX-XXXX" maxlength="12"></label>
-    <div class="row end"><button type="button" class="btn primary" id="aiPairBtn">Pair</button></div>`;
+      html = `<div class="state">${svg("sparkles", 16)}<div><b>Sign in with Claude</b><span>This uses your own Claude account through Claude Code on your computer, the same sign-in as the Claude desktop app or claude.ai. No API key.</span></div></div>
+    <button type="button" class="btn primary wide" id="aiConnect">${svg("sparkles", 16)} Connect Claude</button>
+    <p class="muted small">A small window opens from the helper on your computer and asks you to allow this site. ${!st.reachable ? `The helper needs to be running: in the project folder run <code>./bridge/start.sh</code> (Chrome, Edge or Firefox; Safari blocks it).` : "The helper is running."}</p>
+    <details class="how"><summary>Use a pairing code instead</summary>
+      <label>Pairing code<input id="aiPairCode" type="text" autocomplete="off" spellcheck="false" placeholder="XXXX-XXXX" maxlength="12"></label>
+      <div class="row end"><button type="button" class="btn" id="aiPairBtn">Pair</button></div>
+      <p class="muted small">Start the helper with <code>./bridge/start.sh --allow ${esc(location.origin)}</code> and type the code it prints.</p></details>`;
     } else if (!st.helper)
       html = `<div class="state off">${svg("link", 16)}<div><b>The helper isn’t running</b><span>In the project folder run <code>./bridge/start.sh</code>, then open the app from <code>http://localhost:5174</code>.</span></div></div>`;
     else if (!c || !c.installed)
       html = `<div class="state off">${svg("x", 16)}<div><b>Claude Code isn’t installed</b><span>Install it from claude.com/claude-code, then reload this page.</span></div></div>`;
     else if (!c.loggedIn)
-      html = `<div class="state">${svg("key", 16)}<div><b>Claude Code is ready</b><span>Sign in with your Claude account to use your plan. No API key needed.</span></div></div><button type="button" class="btn primary wide" id="aiSignBtn">${svg("sparkles", 16)} Sign in with Claude</button>`;
+      html = `<div class="state">${svg("key", 16)}<div><b>Sign in with Claude</b><span>Studio uses Claude Code on this computer, which shares your Claude account. If you are already signed in to the Claude desktop app, press Check again. Otherwise sign in on the web.</span></div></div><button type="button" class="btn primary wide" id="aiSignBtn">${svg("sparkles", 16)} Sign in with Claude (web)</button><div class="row end"><button type="button" class="btn" id="aiRecheck">Already signed in? Check again</button></div>`;
     else
       html = `<div class="state ok">${svg("check", 16)}<div><b>Signed in${c.email ? " as " + esc(c.email) : ""}</b><span>Uses your Claude plan through Claude Code on this computer.</span></div></div>
     <label>Model<select id="aiAlias">${AI.ALIASES.map(([v, l]) => `<option value="${v}" ${v === AI.alias() ? "selected" : ""}>${l}</option>`).join("")}</select></label>
     <div class="row end"><button type="button" class="btn primary" id="aiSignTest">Test</button></div>`;
     box.innerHTML = html;
+    const cn = $("#aiConnect");
+    if (cn)
+      cn.onclick = async () => {
+        busy(cn, true, "Waiting for you to allow it…");
+        apiMsg("");
+        try {
+          await Helper.connect();
+          await AI.refresh();
+          apiMsg("Connected to Claude on your computer.", "ok");
+          renderAiTabs();
+          renderSignin();
+          applyAiChange();
+        } catch (err) {
+          apiMsg(err.message, "bad");
+        } finally {
+          busy(cn, false);
+        }
+      };
     const hc = $("#aiHelperCheck");
     if (hc)
       hc.onclick = async () => {
@@ -3848,6 +3868,21 @@
         } finally {
           busy(pb, false);
         }
+      };
+    const rk = $("#aiRecheck");
+    if (rk)
+      rk.onclick = async () => {
+        busy(rk, true, "Checking…");
+        await AI.refresh();
+        busy(rk, false);
+        renderSignin();
+        renderAiTabs();
+        applyAiChange();
+        if (!AI.status().claude || !AI.status().claude.loggedIn)
+          apiMsg(
+            "Not signed in yet. Use Sign in with Claude (web), or sign in to Claude Code first.",
+            "bad",
+          );
       };
     const sb = $("#aiSignBtn");
     if (sb) sb.onclick = () => startSignIn(sb);
