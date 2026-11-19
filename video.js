@@ -200,45 +200,95 @@
     grain: false,
     chroma: false,
     motifs: true,
+    vignette: false,
+    scanlines: false,
+    leak: false,
+    bars: false,
+    shine: false,
   };
   const FX_OPTIONS = {
-    caption: ["pop", "type", "slide", "bounce", "glitch"],
-    transition: ["ring", "zoom", "slide", "flash", "glitch"],
-    camera: ["push", "drift", "shake", "still"],
-    particles: ["none", "sparkles", "confetti", "bokeh"],
+    caption: [
+      "pop",
+      "type",
+      "slide",
+      "bounce",
+      "glitch",
+      "wave",
+      "blur",
+      "flip",
+      "rise",
+    ],
+    transition: [
+      "ring",
+      "zoom",
+      "slide",
+      "flash",
+      "glitch",
+      "wipe",
+      "spin",
+      "blinds",
+    ],
+    camera: ["push", "drift", "shake", "still", "zoomout", "orbit", "pulse"],
+    particles: [
+      "none",
+      "sparkles",
+      "confetti",
+      "bokeh",
+      "rain",
+      "snow",
+      "stars",
+      "embers",
+    ],
+  };
+  /* on/off effects layered over the picture */
+  const SWITCHES = [
+    ["motifs", "Scene icons"],
+    ["glow", "Glow"],
+    ["chroma", "Color fringe"],
+    ["grain", "Film grain"],
+    ["vignette", "Vignette"],
+    ["scanlines", "Scan lines"],
+    ["leak", "Light leak"],
+    ["shine", "Shine sweep"],
+    ["bars", "Cinema bars"],
+  ];
+  const OFF = {
+    glow: false,
+    grain: false,
+    chroma: false,
+    motifs: true,
+    vignette: false,
+    scanlines: false,
+    leak: false,
+    bars: false,
+    shine: false,
   };
   const PRESETS = {
-    Clean: {
+    Clean: Object.assign({}, OFF, {
       caption: "pop",
       transition: "zoom",
       camera: "still",
       particles: "none",
-      glow: false,
-      grain: false,
-      chroma: false,
-      motifs: true,
-    },
-    Hype: {
+    }),
+    Hype: Object.assign({}, OFF, {
       caption: "bounce",
       transition: "flash",
       camera: "shake",
       particles: "confetti",
       glow: true,
-      grain: false,
       chroma: true,
-      motifs: true,
-    },
-    Cinematic: {
+      shine: true,
+    }),
+    Cinematic: Object.assign({}, OFF, {
       caption: "type",
       transition: "slide",
       camera: "drift",
       particles: "bokeh",
       glow: true,
       grain: true,
-      chroma: false,
       motifs: false,
-    },
-    Glitch: {
+    }),
+    Glitch: Object.assign({}, OFF, {
       caption: "glitch",
       transition: "glitch",
       camera: "shake",
@@ -246,8 +296,44 @@
       glow: true,
       grain: true,
       chroma: true,
-      motifs: true,
-    },
+    }),
+    Dreamy: Object.assign({}, OFF, {
+      caption: "blur",
+      transition: "spin",
+      camera: "orbit",
+      particles: "bokeh",
+      glow: true,
+      vignette: true,
+      leak: true,
+    }),
+    "Retro VHS": Object.assign({}, OFF, {
+      caption: "wave",
+      transition: "blinds",
+      camera: "pulse",
+      particles: "stars",
+      glow: true,
+      grain: true,
+      chroma: true,
+      scanlines: true,
+    }),
+    Epic: Object.assign({}, OFF, {
+      caption: "flip",
+      transition: "wipe",
+      camera: "zoomout",
+      particles: "embers",
+      glow: true,
+      vignette: true,
+      bars: true,
+      shine: true,
+    }),
+    Winter: Object.assign({}, OFF, {
+      caption: "rise",
+      transition: "wipe",
+      camera: "drift",
+      particles: "snow",
+      vignette: true,
+      leak: true,
+    }),
   };
   const MOTIFS = [
     "chart",
@@ -1788,6 +1874,74 @@
         ctx.fillRect(-7, -3.5, 14, 7);
         ctx.restore();
       }
+    } else if (kind === "rain") {
+      ctx.lineCap = "round";
+      for (let i = 0; i < 70; i++) {
+        const sp = 900 + rnd(i + 3) * 500,
+          x = ((rnd(i + 1) * (W + 300) + t * 160) % (W + 300)) - 150,
+          y = ((rnd(i + 40) * H + t * sp) % (H + 120)) - 60;
+        ctx.strokeStyle = rgba(i % 3 ? th.fg : th.ac2, 0.22 + rnd(i + 9) * 0.2);
+        ctx.lineWidth = 2 + rnd(i + 7) * 2;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - 14, y + 46);
+        ctx.stroke();
+      }
+    } else if (kind === "snow") {
+      for (let i = 0; i < 60; i++) {
+        const sp = 40 + rnd(i + 3) * 90,
+          x = rnd(i + 1) * W + Math.sin(t * 0.8 + i) * 34,
+          y = ((rnd(i + 40) * H + t * sp) % (H + 40)) - 20,
+          r = 2.5 + rnd(i + 7) * 6;
+        ctx.fillStyle = rgba(th.fg, 0.3 + rnd(i + 5) * 0.5);
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, 6.3);
+        ctx.fill();
+      }
+    } else if (kind === "stars") {
+      for (let i = 0; i < 80; i++) {
+        const tw = 0.3 + 0.7 * Math.abs(Math.sin(t * (1 + rnd(i + 3) * 2) + i));
+        ctx.fillStyle = rgba(i % 4 ? th.fg : th.ac2, 0.2 + 0.6 * tw);
+        ctx.beginPath();
+        ctx.arc(
+          rnd(i + 1) * W,
+          rnd(i + 40) * H,
+          1.2 + rnd(i + 8) * 2.2,
+          0,
+          6.3,
+        );
+        ctx.fill();
+      }
+      const k = frac(t / 2.4);
+      if (k < 0.3) {
+        const e = k / 0.3,
+          x = W * 0.9 - e * W * 0.7,
+          y = H * 0.12 + e * H * 0.22;
+        const g = ctx.createLinearGradient(x, y, x + 150, y - 60);
+        g.addColorStop(0, rgba(th.fg, 0.9 * (1 - e)));
+        g.addColorStop(1, rgba(th.fg, 0));
+        ctx.strokeStyle = g;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + 150, y - 60);
+        ctx.stroke();
+      }
+    } else if (kind === "embers") {
+      for (let i = 0; i < 40; i++) {
+        const sp = 50 + rnd(i + 3) * 110,
+          y = H - (((rnd(i + 40) * H + t * sp) % (H + 60)) - 30),
+          x = rnd(i + 1) * W + Math.sin(t * 1.3 + i * 2) * 40,
+          life = clamp(y / H),
+          r = 2 + rnd(i + 7) * 5;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
+        g.addColorStop(0, rgba(i % 2 ? th.ac : "#ffb347", 0.9 * life));
+        g.addColorStop(1, rgba(th.ac, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 3, 0, 6.3);
+        ctx.fill();
+      }
     } else if (kind === "bokeh") {
       for (let i = 0; i < 12; i++) {
         const r = 34 + rnd(i + 2) * 70,
@@ -2040,8 +2194,16 @@
     /* camera */
     let zoom = 1,
       tx = 0,
-      ty = 0;
-    if (fx.camera === "push") zoom = 1 + 0.045 * (st / s.dur);
+      ty = 0,
+      crot = 0;
+    if (fx.camera === "zoomout") zoom = 1.08 - 0.06 * (st / s.dur);
+    else if (fx.camera === "orbit") {
+      crot = Math.sin(t * 0.5) * 0.014;
+      tx = Math.sin(t * 0.7) * 10;
+      zoom = 1.05;
+    } else if (fx.camera === "pulse")
+      zoom = 1 + 0.02 * Math.pow(Math.max(0, Math.sin(t * Math.PI * 2 * 2)), 3);
+    else if (fx.camera === "push") zoom = 1 + 0.045 * (st / s.dur);
     else if (fx.camera === "drift") {
       tx = Math.sin(t * 0.6) * 14;
       ty = Math.cos(t * 0.5) * 10;
@@ -2054,15 +2216,20 @@
     /* transition (first moments of each scene) */
     const te = easeOutCubic(clamp(st / 0.45));
     let tzoom = 1,
-      tdx = 0;
-    if (fx.transition === "zoom") tzoom = 1 + 0.32 * (1 - te);
+      tdx = 0,
+      trot = 0;
+    if (fx.transition === "spin") {
+      trot = (1 - te) * 0.22;
+      tzoom = 1 + 0.25 * (1 - te);
+    } else if (fx.transition === "zoom") tzoom = 1 + 0.32 * (1 - te);
     else if (fx.transition === "slide") tdx = (1 - te) * W * 0.7;
     else if (fx.transition === "glitch" && st < 0.3)
       tdx = (rnd(fnum * 3 + s.index) - 0.5) * 36;
 
     ctx.save();
     ctx.translate(W / 2, H / 2);
-    ctx.scale(zoom, zoom);
+    ctx.rotate(crot + trot);
+    ctx.scale(zoom * (trot ? tzoom : 1), zoom * (trot ? tzoom : 1));
     ctx.translate(-W / 2 + tx, -H / 2 + ty);
     drawBg(ctx, p, t, s);
     drawLook(ctx, p, t, s);
@@ -2084,6 +2251,7 @@
       exit = clamp((st - (s.dur - 0.22)) / 0.22);
     ctx.save();
     ctx.translate(W / 2, H / 2);
+    ctx.rotate(crot + trot);
     ctx.scale(zoom * tzoom, zoom * tzoom);
     ctx.translate(-W / 2 + tx + tdx, -H / 2 + ty - exit * 26);
     ctx.globalAlpha = 1 - exit;
@@ -2099,6 +2267,8 @@
         const tw = st - s.at[it.i];
         if (tw < 0) return;
         let sc = 1,
+          sy = 1,
+          blurPx = 0,
           ox = 0,
           oy = 0,
           a = clamp(tw / 0.12),
@@ -2119,6 +2289,28 @@
             break;
           case "glitch":
             break;
+          case "wave": {
+            const e = easeOutCubic(clamp(tw / 0.35));
+            oy = (1 - e) * 60 + Math.sin(t * 4 + it.i * 0.9) * 9;
+            break;
+          }
+          case "blur": {
+            const e = easeOutCubic(clamp(tw / 0.45));
+            blurPx = (1 - e) * 14;
+            sc = 1.12 - 0.12 * e;
+            break;
+          }
+          case "flip": {
+            const e = easeOutBack(clamp(tw / 0.4));
+            sy = Math.max(0.02, e);
+            break;
+          }
+          case "rise": {
+            const e = easeOutCubic(clamp(tw / 0.5));
+            oy = (1 - e) * 70;
+            a = clamp(tw / 0.3);
+            break;
+          }
           default: {
             const e = easeOutBack(clamp(tw / 0.3));
             sc = 0.7 + 0.3 * e;
@@ -2137,8 +2329,10 @@
         ctx.save();
         ctx.globalAlpha *= a;
         ctx.translate(cx + ox, cy + oy);
-        ctx.scale(sc, sc);
+        ctx.scale(sc, sc * sy);
         ctx.translate(-cx, -cy);
+        if (blurPx > 0.3 && "filter" in ctx)
+          ctx.filter = `blur(${blurPx.toFixed(1)}px)`;
         if (active > 0.01) {
           ctx.fillStyle = rgba(th.ac, active);
           rr(
@@ -2171,6 +2365,7 @@
         ctx.fillStyle =
           active > 0.5 ? pillTxt : emph || s.type === "outro" ? th.ac : th.fg;
         ctx.fillText(str, it.x, it.y);
+        if ("filter" in ctx) ctx.filter = "none";
         ctx.restore();
       }),
     );
@@ -2211,6 +2406,89 @@
         ctx.fillStyle = rgba(k % 2 ? th.ac2 : th.ac, 0.45);
         ctx.fillRect(0, r * H, W, 6 + rnd(k + fnum) * 30);
       }
+    if (fx.transition === "wipe" && st < 0.5) {
+      const k = easeOutCubic(st / 0.5),
+        x = -W * 0.4 + k * W * 1.8;
+      ctx.save();
+      ctx.fillStyle = th.ac;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + W * 0.45, 0);
+      ctx.lineTo(x + W * 0.45 - 220, H);
+      ctx.lineTo(x - 220, H);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = rgba(th.ac2, 0.9);
+      ctx.fillRect(x + W * 0.45 - 40, 0, 0, 0);
+      ctx.restore();
+    }
+    if (fx.transition === "blinds" && st < 0.5) {
+      const k = clamp(st / 0.5),
+        n = 9,
+        h = H / n;
+      ctx.fillStyle = th.bg;
+      for (let i = 0; i < n; i++) {
+        const local = clamp(k * 1.6 - i * 0.06),
+          hh = h * (1 - local);
+        if (hh > 0.5) ctx.fillRect(0, i * h, W, hh);
+      }
+    }
+    if (fx.leak) {
+      const x = ((t * 0.12) % 1.6) * W - W * 0.3;
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      const g = ctx.createLinearGradient(x - 260, 0, x + 260, H * 0.6);
+      g.addColorStop(0, "rgba(255,150,60,0)");
+      g.addColorStop(0.5, "rgba(255,120,80,0.2)");
+      g.addColorStop(1, "rgba(255,60,120,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
+    if (fx.shine) {
+      const k = clamp(st / 1.2);
+      if (k < 1) {
+        const x = -300 + k * (W + 600);
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        const g = ctx.createLinearGradient(x - 120, 0, x + 120, 0);
+        g.addColorStop(0, "rgba(255,255,255,0)");
+        g.addColorStop(0.5, "rgba(255,255,255,0.16)");
+        g.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = g;
+        ctx.translate(W / 2, H / 2);
+        ctx.rotate(0.35);
+        ctx.translate(-W / 2, -H / 2);
+        ctx.fillRect(x - 120, -H, 240, H * 3);
+        ctx.restore();
+      }
+    }
+    if (fx.scanlines) {
+      ctx.fillStyle = "rgba(0,0,0,0.13)";
+      for (let y = Math.floor(t * 20) % 4; y < H; y += 4)
+        ctx.fillRect(0, y, W, 1.6);
+    }
+    if (fx.vignette) {
+      const g = ctx.createRadialGradient(
+        W / 2,
+        H / 2,
+        H * 0.28,
+        W / 2,
+        H / 2,
+        H * 0.72,
+      );
+      g.addColorStop(0, "rgba(0,0,0,0)");
+      g.addColorStop(1, "rgba(0,0,0,0.55)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+    }
+    if (fx.bars) {
+      const e = easeOutCubic(clamp(t / 0.6)),
+        bh = 92 * e;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, W, bh);
+      ctx.fillRect(0, H - bh, W, bh);
+    }
     if (fx.grain) {
       const f = Math.floor(t * 24);
       for (let i = 0; i < 240; i++) {
@@ -2492,6 +2770,7 @@
     themeByName,
     DEFAULT_FX,
     FX_OPTIONS,
+    SWITCHES,
     PRESETS,
     MOTIFS,
     plan,

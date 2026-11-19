@@ -1436,7 +1436,7 @@
           )
           .join("")}</div></div>
         ${seg("caption", "Captions")}${seg("transition", "Transitions")}${seg("camera", "Camera")}${seg("particles", "Particles")}
-        <div class="switches">${sw("motifs", "Scene icons")}${sw("glow", "Glow")}${sw("chroma", "Color fringe")}${sw("grain", "Film grain")}</div>
+        <div class="switches">${RV.SWITCHES.map(([k, l]) => sw(k, l)).join("")}</div>
       </section>
       <section class="panel director">
         <div class="ph"><h3>${svg("wand", 17)} AI director</h3>${ai ? `<button type="button" class="btn primary" id="direct" ${dis}>${svg("sparkles", 16)} Direct with Claude</button>` : `<button type="button" class="btn" id="direct">${svg("key", 16)} Connect Claude</button>`}</div>
