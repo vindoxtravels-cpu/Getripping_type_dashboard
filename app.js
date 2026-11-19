@@ -1390,6 +1390,10 @@
       dis = running ? "disabled" : "";
     const seg = (key, label) =>
       `<div class="fxrow"><span>${label}</span><div class="seg" data-fx="${key}">${RV.FX_OPTIONS[key].map((o) => `<button type="button" data-v="${o}" class="${fx[key] === o ? "on" : ""}" ${dis}>${cap(o)}</button>`).join("")}</div></div>`;
+    const SPEEDS = [-2, -1.5, -1, 1, 1.25, 1.5, 1.75, 2],
+      curSpeed = typeof fx.speed === "number" ? fx.speed : 1;
+    const speedRow = () =>
+      `<div class="fxrow"><span>Speed</span><div class="seg" id="fxSpeed" title="Speed of effects and motion: 1× to 2× faster, −1× to −2× runs backwards">${SPEEDS.map((v) => `<button type="button" data-speed="${v}" class="${v === curSpeed ? "on" : ""}" ${dis}>${v < 0 ? "−" + Math.abs(v) : v}×</button>`).join("")}</div></div>`;
     const sw = (key, label) =>
       `<label class="switch"><input type="checkbox" data-fxsw="${key}" ${fx[key] ? "checked" : ""} ${dis}><span class="knob"></span><span>${label}</span></label>`;
     $("#view").innerHTML = `
@@ -1435,7 +1439,7 @@
               `<button type="button" class="chip btnchip" data-preset="${n}" ${dis}>${n}</button>`,
           )
           .join("")}</div></div>
-        ${seg("look", "Film look")}${seg("caption", "Captions")}${seg("transition", "Transitions")}${seg("camera", "Camera")}${seg("particles", "Particles")}
+        ${seg("orbit", "Orbit")}${speedRow()}${seg("look", "Film look")}${seg("caption", "Captions")}${seg("transition", "Transitions")}${seg("camera", "Camera")}${seg("particles", "Particles")}
         <div class="switches">${RV.SWITCHES.map(([k, l]) => sw(k, l)).join("")}</div>
       </section>
       <section class="panel director">
@@ -1499,6 +1503,13 @@
         (i.onchange = () =>
           change(() => {
             sc.style.fx[i.dataset.fxsw] = i.checked;
+          })),
+    );
+    $$("#fxSpeed [data-speed]").forEach(
+      (b) =>
+        (b.onclick = () =>
+          change(() => {
+            sc.style.fx.speed = parseFloat(b.dataset.speed);
           })),
     );
     $$("[data-preset]").forEach(

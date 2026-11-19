@@ -209,6 +209,8 @@
     vhs: false,
     scratch: false,
     look: "none",
+    orbit: "none",
+    speed: 1,
   };
   /* a whole-picture look (print or screen style), one at a time */
   const LOOKS = [
@@ -221,7 +223,9 @@
     "duotone",
     "xray",
   ];
+  const ORBITS = ["none", "flags", "icons", "dots"];
   const FX_OPTIONS = {
+    orbit: ORBITS,
     look: LOOKS,
     caption: [
       "pop",
@@ -250,6 +254,7 @@
       "iris",
       "whip",
       "burn",
+      "pixels",
     ],
     camera: [
       "push",
@@ -275,6 +280,7 @@
       "matrix",
       "dust",
       "flow",
+      "squares",
     ],
   };
   /* on/off effects layered over the picture */
@@ -431,6 +437,7 @@
     }),
   };
   const MOTIFS = [
+    "globe",
     "chart",
     "coin",
     "flame",
@@ -441,6 +448,10 @@
     "check",
   ];
   const MOTIF_WORDS = [
+    [
+      "globe",
+      /countr(y|ies)|abroad|world|global|international|nation|study abroad|travel|visa|immigra|passport|embassy|flag/i,
+    ],
     [
       "coin",
       /money|\$|cash|price|pricing|paid|pay|profit|cost|dollar|income|revenue|budget|free|expensive|cheap/i,
@@ -1982,6 +1993,23 @@
         ctx.fillRect(-7, -3.5, 14, 7);
         ctx.restore();
       }
+    } else if (kind === "squares") {
+      for (let i = 0; i < 26; i++) {
+        const sz = 14 + rnd(i + 3) * 30,
+          x = rnd(i + 1) * W + Math.sin(t * 0.4 + i) * 26,
+          y =
+            ((((rnd(i + 40) * H - t * (14 + rnd(i + 9) * 26)) % (H + 80)) +
+              H +
+              80) %
+              (H + 80)) -
+            40;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(t * (rnd(i + 5) - 0.5) * 0.9 + i);
+        ctx.fillStyle = rgba(i % 2 ? th.ac : th.ac2, 0.16 + 0.22 * rnd(i + 12));
+        ctx.fillRect(-sz / 2, -sz / 2, sz, sz);
+        ctx.restore();
+      }
     } else if (kind === "matrix") {
       ctx.save();
       ctx.font = `700 22px ${MONO}`;
@@ -2139,6 +2167,129 @@
     }
   }
 
+  /* ---------- orbiting chips (flags, icons or dots) turning clockwise around the scene icon ---------- */
+  const COUNTRIES = [
+    ["US", /\b(usa|u\.s\.a?\.?|united states|america|american)\b/i],
+    ["GB", /\b(uk|u\.k\.|united kingdom|britain|british|england)\b/i],
+    ["CA", /\bcanad(a|ian)\b/i],
+    ["AU", /\baustrali(a|an)\b/i],
+    ["DE", /\bgerman(y|)\b/i],
+    ["FR", /\bfrance\b|\bfrench\b/i],
+    ["IN", /\bindia\b|\bindian\b/i],
+    ["IE", /\bireland\b|\birish\b/i],
+    ["NZ", /\bnew zealand\b/i],
+    ["SG", /\bsingapore\b/i],
+    ["AE", /\buae\b|\bdubai\b|\bemirates\b/i],
+    ["NL", /\bnetherlands\b|\bdutch\b|\bholland\b/i],
+    ["SE", /\bsweden\b|\bswedish\b/i],
+    ["CH", /\bswitzerland\b|\bswiss\b/i],
+    ["IT", /\bitaly\b|\bitalian\b/i],
+    ["ES", /\bspain\b|\bspanish\b/i],
+    ["JP", /\bjapan(ese)?\b/i],
+    ["KR", /\bkorea(n)?\b/i],
+    ["CN", /\bchina\b|\bchinese\b/i],
+    ["MX", /\bmexic(o|an)\b/i],
+    ["BR", /\bbrazil(ian)?\b/i],
+    ["ZA", /\bsouth africa\b/i],
+    ["FI", /\bfinland\b|\bfinnish\b/i],
+    ["NO", /\bnorway\b|\bnorwegian\b/i],
+    ["DK", /\bdenmark\b|\bdanish\b/i],
+    ["PT", /\bportugal\b|\bportuguese\b/i],
+    ["MY", /\bmalaysia\b/i],
+    ["TH", /\bthailand\b/i],
+    ["TR", /\bturk(ey|ish)\b/i],
+    ["SA", /\bsaudi\b/i],
+    ["QA", /\bqatar\b/i],
+    ["PL", /\bpoland\b|\bpolish\b/i],
+    ["RU", /\brussia(n)?\b/i],
+    ["AT", /\baustria\b/i],
+    ["BE", /\bbelgium\b/i],
+    ["HU", /\bhungary\b/i],
+  ];
+  const flagOf = (iso) =>
+    String.fromCodePoint(
+      ...[...iso].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65),
+    );
+  const ICONS = ["💰", "📈", "🔥", "⚡", "🎯", "⏰", "❤️", "✅", "🌍"];
+  function orbitItems(p) {
+    if (p._orbit) return p._orbit;
+    const text = p.scenes.map((sc) => sc.text).join(" \n ");
+    const found = COUNTRIES.map(([iso, re]) => ({ iso, at: text.search(re) }))
+      .filter((x) => x.at >= 0)
+      .sort((a, b) => a.at - b.at)
+      .slice(0, 8)
+      .map((x) => flagOf(x.iso));
+    return (p._orbit = { flags: found, icons: ICONS.slice(0, 6) });
+  }
+  /** phase "back" draws the half that passes behind the icon, "front" the half in front of it */
+  function drawOrbit(ctx, p, ta, stx, phase) {
+    const kind = p.fx.orbit;
+    if (!kind || kind === "none") return;
+    const th = p.theme,
+      it = orbitItems(p);
+    let items =
+      kind === "flags"
+        ? it.flags.length
+          ? it.flags
+          : it.icons
+        : kind === "icons"
+          ? it.icons
+          : Array.from({ length: 6 }, () => "");
+    const n = items.length,
+      cx = W / 2,
+      cy = H * 0.22,
+      rx = 255,
+      ry = 150,
+      e = easeOutCubic(clamp(stx / 0.6)),
+      w = 0.7; // radians per second: one turn in about 9 s
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const a = ta * w + (i * 6.2832) / n,
+        depth = (Math.sin(a) + 1) / 2, // 1 = nearest the viewer
+        front = Math.sin(a) > 0;
+      if ((phase === "front") !== front) continue;
+      const x = cx + Math.cos(a) * rx * e,
+        y = cy + Math.sin(a) * ry * e,
+        r = (30 + depth * 16) * e;
+      ctx.save();
+      ctx.globalAlpha *= 0.55 + depth * 0.45;
+      ctx.shadowColor = "rgba(0,0,0,0.3)";
+      ctx.shadowBlur = 14;
+      ctx.fillStyle =
+        kind === "dots"
+          ? [th.ac, th.ac2, th.fg][i % 3]
+          : lum(th.bg) > 0.5
+            ? "#fff"
+            : "rgba(255,255,255,0.94)";
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, 6.3);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      if (kind !== "dots") {
+        ctx.strokeStyle = rgba(th.ac, 0.5);
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.font = `${Math.round(r * 1.15)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+        ctx.fillStyle = "#111";
+        ctx.fillText(items[i], x, y + r * 0.06);
+      }
+      ctx.restore();
+    }
+    /* a faint track the chips run on */
+    if (phase === "back") {
+      ctx.strokeStyle = rgba(th.fg, 0.08);
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 12]);
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx * e, ry * e, 0, 0, 6.2832);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   /* ---------- animated icons that match each scene ---------- */
   function drawMotif(ctx, name, cx, cy, size, st, t, th) {
     const e = easeOutBack(clamp(st / 0.5)),
@@ -2162,6 +2313,62 @@
     ctx.strokeStyle = th.ac;
     ctx.fillStyle = th.ac;
     switch (name) {
+      case "globe": {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, 6.3);
+        ctx.clip();
+        const og = ctx.createRadialGradient(
+          -r * 0.3,
+          -r * 0.3,
+          r * 0.1,
+          0,
+          0,
+          r,
+        );
+        og.addColorStop(0, "#6fd6ff");
+        og.addColorStop(1, "#1a6fd0");
+        ctx.fillStyle = og;
+        ctx.fillRect(-r, -r, 2 * r, 2 * r);
+        const rot = t * 0.35;
+        ctx.fillStyle = "#37c26f";
+        for (let i = 0; i < 7; i++) {
+          const x = (((rnd(i + 1) * 2.6 + rot) % 2.6) - 1.3) * r,
+            y = (rnd(i + 20) - 0.5) * r * 1.4,
+            w = r * (0.22 + rnd(i + 40) * 0.3);
+          ctx.beginPath();
+          ctx.ellipse(
+            x,
+            y,
+            w,
+            w * (0.6 + rnd(i + 5) * 0.5),
+            rnd(i) * 3,
+            0,
+            6.3,
+          );
+          ctx.fill();
+        }
+        const sh = ctx.createRadialGradient(
+          -r * 0.35,
+          -r * 0.35,
+          r * 0.2,
+          0,
+          0,
+          r * 1.05,
+        );
+        sh.addColorStop(0, "rgba(255,255,255,0.28)");
+        sh.addColorStop(0.55, "rgba(255,255,255,0)");
+        sh.addColorStop(1, "rgba(0,20,60,0.45)");
+        ctx.fillStyle = sh;
+        ctx.fillRect(-r, -r, 2 * r, 2 * r);
+        ctx.restore();
+        ctx.strokeStyle = rgba(th.fg, 0.35);
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, 6.3);
+        ctx.stroke();
+        break;
+      }
       case "chart":
         {
           ctx.strokeStyle = rgba(th.fg, 0.45);
@@ -2438,6 +2645,15 @@
       p.scenes[p.scenes.length - 1];
     const st = t - s.start,
       fnum = Math.floor(t * 30);
+    /* speed: 1x to 2x runs the effects faster; -1x to -2x runs them backwards (spin the other way, drift the other way).
+     * Ambient motion uses ta (offset so it stays positive while running backwards); entrances use stx. */
+    const sp =
+        typeof fx.speed === "number" && isFinite(fx.speed)
+          ? Math.max(-2, Math.min(2, fx.speed))
+          : 1,
+      sa = Math.max(0.25, Math.abs(sp)),
+      ta = 1000 + t * sp,
+      stx = st * sa;
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
     ctx.globalAlpha = 1;
@@ -2449,26 +2665,28 @@
       ty = 0,
       crot = 0;
     if (fx.camera === "dutch") {
-      crot = 0.07 + Math.sin(t * 0.4) * 0.012;
-      tx = Math.sin(t * 0.5) * 8;
+      crot = 0.07 + Math.sin(ta * 0.4) * 0.012;
+      tx = Math.sin(ta * 0.5) * 8;
       zoom = 1.14;
-    } else if (fx.camera === "breathe") zoom = 1.03 + 0.035 * Math.sin(t * 1.1);
+    } else if (fx.camera === "breathe")
+      zoom = 1.03 + 0.035 * Math.sin(ta * 1.1);
     else if (fx.camera === "handheld") {
-      tx = (vnoise(t * 1.3) - 0.5) * 26;
-      ty = (vnoise(t * 1.1 + 50) - 0.5) * 20;
-      crot = (vnoise(t * 0.9 + 100) - 0.5) * 0.02;
+      tx = (vnoise(ta * 1.3) - 0.5) * 26;
+      ty = (vnoise(ta * 1.1 + 50) - 0.5) * 20;
+      crot = (vnoise(ta * 0.9 + 100) - 0.5) * 0.02;
       zoom = 1.05;
     } else if (fx.camera === "zoomout") zoom = 1.08 - 0.06 * (st / s.dur);
     else if (fx.camera === "orbit") {
-      crot = Math.sin(t * 0.5) * 0.014;
-      tx = Math.sin(t * 0.7) * 10;
+      crot = Math.sin(ta * 0.5) * 0.014;
+      tx = Math.sin(ta * 0.7) * 10;
       zoom = 1.05;
     } else if (fx.camera === "pulse")
-      zoom = 1 + 0.02 * Math.pow(Math.max(0, Math.sin(t * Math.PI * 2 * 2)), 3);
+      zoom =
+        1 + 0.02 * Math.pow(Math.max(0, Math.sin(ta * Math.PI * 2 * 2)), 3);
     else if (fx.camera === "push") zoom = 1 + 0.045 * (st / s.dur);
     else if (fx.camera === "drift") {
-      tx = Math.sin(t * 0.6) * 14;
-      ty = Math.cos(t * 0.5) * 10;
+      tx = Math.sin(ta * 0.6) * 14;
+      ty = Math.cos(ta * 0.5) * 10;
       zoom = 1.04;
     } else if (fx.camera === "shake") {
       tx = (rnd(fnum) - 0.5) * 7;
@@ -2480,7 +2698,7 @@
       ty += (vnoise(t * 7 + 30) - 0.5) * 4;
     }
     /* transition (first moments of each scene) */
-    const te = easeOutCubic(clamp(st / 0.45));
+    const te = easeOutCubic(clamp(stx / 0.45));
     let tzoom = 1,
       tdx = 0,
       trot = 0;
@@ -2490,7 +2708,7 @@
     } else if (fx.transition === "zoom") tzoom = 1 + 0.32 * (1 - te);
     else if (fx.transition === "slide") tdx = (1 - te) * W * 0.7;
     else if (fx.transition === "whip") tdx = -(1 - te) * W * 0.8;
-    else if (fx.transition === "glitch" && st < 0.3)
+    else if (fx.transition === "glitch" && stx < 0.3)
       tdx = (rnd(fnum * 3 + s.index) - 0.5) * 36;
 
     ctx.save();
@@ -2498,19 +2716,21 @@
     ctx.rotate(crot + trot);
     ctx.scale(zoom * (trot ? tzoom : 1), zoom * (trot ? tzoom : 1));
     ctx.translate(-W / 2 + tx, -H / 2 + ty);
-    drawBg(ctx, p, t, s);
+    drawBg(ctx, p, ta, s);
     drawLook(ctx, p, t, s);
-    if (fx.transition === "ring" && st < 0.7) {
-      const k = easeOutCubic(st / 0.7);
+    if (fx.transition === "ring" && stx < 0.7) {
+      const k = easeOutCubic(stx / 0.7);
       ctx.strokeStyle = rgba(th.ac, 0.5 * (1 - k));
       ctx.lineWidth = 10 * (1 - k) + 1;
       ctx.beginPath();
       ctx.arc(W / 2, H * 0.46, 80 + k * 520, 0, 6.3);
       ctx.stroke();
     }
-    drawParticles(ctx, p, t, st);
+    drawOrbit(ctx, p, ta, stx, "back");
+    drawParticles(ctx, p, ta, stx);
     if (s.motif && !th.look)
-      drawMotif(ctx, s.motif, W / 2, H * 0.22, 190, st, t, th);
+      drawMotif(ctx, s.motif, W / 2, H * 0.22, 190, stx, ta, th);
+    drawOrbit(ctx, p, ta, stx, "front");
     ctx.restore();
 
     /* text group */
@@ -2531,7 +2751,7 @@
     const pillTxt = lum(th.ac) > 0.62 ? "#111" : "#fff";
     L.lines.forEach((ln, li) =>
       ln.items.forEach((it) => {
-        const tw = st - s.at[it.i];
+        const tw = (st - s.at[it.i]) * sa;
         if (tw < 0) return;
         let sliceDx = 0,
           sc = 1,
@@ -2715,18 +2935,37 @@
     }
 
     /* overlays */
-    if (fx.transition === "flash" && st < 0.24) {
-      ctx.fillStyle = `rgba(255,255,255,${0.8 * (1 - st / 0.24)})`;
+    if (fx.transition === "flash" && stx < 0.24) {
+      ctx.fillStyle = `rgba(255,255,255,${0.8 * (1 - stx / 0.24)})`;
       ctx.fillRect(0, 0, W, H);
     }
-    if (fx.transition === "glitch" && st < 0.3)
+    if (fx.transition === "glitch" && stx < 0.3)
       for (let k = 0; k < 6; k++) {
         const r = rnd(fnum * 5 + k + s.index);
         ctx.fillStyle = rgba(k % 2 ? th.ac2 : th.ac, 0.45);
         ctx.fillRect(0, r * H, W, 6 + rnd(k + fnum) * 30);
       }
-    if (fx.transition === "iris" && st < 0.55) {
-      const k = easeOutCubic(st / 0.55),
+    if (fx.transition === "pixels" && stx < 0.6) {
+      const k = stx / 0.6,
+        cols = 8,
+        rows = 14,
+        cw = W / cols,
+        ch = H / rows;
+      for (let r = 0; r < rows; r++)
+        for (let c = 0; c < cols; c++) {
+          const q = rnd(r * 31 + c * 7 + s.index * 97);
+          if (k >= q * 0.9 + 0.05) continue; // each square disappears at its own moment
+          ctx.fillStyle =
+            (r + c) % 3 === 0
+              ? th.ac
+              : (r + c) % 3 === 1
+                ? th.fg
+                : rgba(th.fg, 0.85);
+          ctx.fillRect(c * cw, r * ch, cw + 1, ch + 1);
+        }
+    }
+    if (fx.transition === "iris" && stx < 0.55) {
+      const k = easeOutCubic(stx / 0.55),
         R = Math.max(1, (Math.hypot(W, H) / 2) * k);
       ctx.save();
       ctx.beginPath();
@@ -2736,8 +2975,8 @@
       ctx.fill("evenodd");
       ctx.restore();
     }
-    if (fx.transition === "whip" && st < 0.4) {
-      const k = st / 0.4;
+    if (fx.transition === "whip" && stx < 0.4) {
+      const k = stx / 0.4;
       for (let i = 0; i < 12; i++) {
         const y = rnd(i + s.index * 5) * H,
           h = 36 + rnd(i + 3) * 130,
@@ -2749,8 +2988,8 @@
         ctx.fillRect(x - W * 0.8, y, W * 0.8, h);
       }
     }
-    if (fx.transition === "burn" && st < 0.45) {
-      const k = st / 0.45,
+    if (fx.transition === "burn" && stx < 0.45) {
+      const k = stx / 0.45,
         a = Math.pow(1 - k, 1.6),
         bx = W * (0.3 + 0.4 * rnd(s.index + 1)),
         by = H * (0.2 + 0.5 * rnd(s.index + 7)),
@@ -2764,8 +3003,8 @@
       ctx.fillRect(0, 0, W, H);
       ctx.restore();
     }
-    if (fx.transition === "wipe" && st < 0.5) {
-      const k = easeOutCubic(st / 0.5),
+    if (fx.transition === "wipe" && stx < 0.5) {
+      const k = easeOutCubic(stx / 0.5),
         x = -W * 0.4 + k * W * 1.8;
       ctx.save();
       ctx.fillStyle = th.ac;
@@ -2780,8 +3019,8 @@
       ctx.fillRect(x + W * 0.45 - 40, 0, 0, 0);
       ctx.restore();
     }
-    if (fx.transition === "blinds" && st < 0.5) {
-      const k = clamp(st / 0.5),
+    if (fx.transition === "blinds" && stx < 0.5) {
+      const k = clamp(stx / 0.5),
         n = 9,
         h = H / n;
       ctx.fillStyle = th.bg;
@@ -2804,7 +3043,7 @@
       ctx.restore();
     }
     if (fx.shine) {
-      const k = clamp(st / 1.2);
+      const k = clamp(stx / 1.2);
       if (k < 1) {
         const x = -300 + k * (W + 600);
         ctx.save();
@@ -2916,7 +3155,7 @@
     if (label) {
       ctx.font = `700 24px ${FONT}`;
       const w = ctx.measureText(label).width + 40,
-        e = easeOutCubic(clamp(st / 0.35));
+        e = easeOutCubic(clamp(stx / 0.35));
       ctx.save();
       ctx.globalAlpha = e;
       ctx.translate(0, (1 - e) * -14);
