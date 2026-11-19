@@ -370,9 +370,13 @@
       (result && result.structuredContent) ||
       tryJson(text) ||
       tryJson(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
-    if (result && result.isError)
+    /* a failed tool still comes back with a per-tool reason inside: let the caller read it */
+    const hasResults = out && out.data && out.data.results;
+    if (result && result.isError && !hasResults)
       throw new IGError(
-        (out && errText(out.error)) || text || "Composio could not do that.",
+        (out && specific(collectErrors(out)).join(" · ")) ||
+          text ||
+          "Composio could not do that.",
       );
     return out || { raw: text };
   }
@@ -424,13 +428,18 @@
     };
   }
   /** Runs several read-only Instagram tools in one request. Resolves [{ ok, data, error }] in the same order. */
-  async function runMany(calls) {
+  async function runMany(calls, account) {
     calls.forEach((c) => {
       if (!READ_ONLY.has(c.tool))
         throw new IGError("That tool is not allowed: " + c.tool);
     });
     const out = await callTool("COMPOSIO_MULTI_EXECUTE_TOOL", {
-      tools: calls.map((c) => ({ tool_slug: c.tool, arguments: c.args })),
+      tools: calls.map((c) =>
+        Object.assign(
+          { tool_slug: c.tool, arguments: c.args },
+          account ? { account } : {},
+        ),
+      ),
       sync_response_to_workbench: false,
       memory: {},
       thought: "Read Instagram insights for the dashboard",
@@ -667,12 +676,10 @@
       );
     setup.signedIn = true;
     const found = ((st && st.accounts) || []).filter(
-      (a) => !a.status || a.status === "ACTIVE",
+      (a) => !a.status || String(a.status).toUpperCase() === "ACTIVE",
     );
-    /* Composio's tools act on your default Instagram account, so that is the one shown */
-    const a = found.find((x) => x.is_default) || found[0];
     accounts.clear();
-    if (a)
+    found.forEach((a) =>
       accounts.set(a.id, {
         id: a.id,
         alias: a.alias || "",
@@ -684,12 +691,10 @@
         error: null,
         data: null,
         fetchedAt: 0,
-      });
-    setup.connected = !!a;
-    setup.note =
-      found.length > 1
-        ? "Composio uses your default Instagram account. Change the default in Composio to switch."
-        : "";
+      }),
+    );
+    setup.connected = found.length > 0;
+    setup.note = "";
     if (!accounts.has(activeId))
       activeId = accounts.keys().next().value || null;
     saveActive();
@@ -776,7 +781,7 @@
       let last = "";
       for (const ref of refs) {
         try {
-          const [r] = await runMany([spec.profile(ref)]);
+          const [r] = await runMany([spec.profile(ref)], a.id);
           if (r.ok)
             return `${r.data.username || "?"} · ${r.data.followers_count || 0} followers${ref === "me" ? "" : " (using the account id)"}`;
           last = `${ref === "me" ? "" : "[id " + ref + "] "}${r.error || "Instagram refused the request."}`;
@@ -802,27 +807,30 @@
         notes = [];
       /* "me" works for most connections; if the profile read fails, try the account's own Instagram id */
       const batch = (ref) =>
-        runMany([
-          spec.profile(ref),
-          spec.totals(["views"], since, now, "follow_type", ref),
-          spec.totals(
-            ["reach", "total_interactions"],
-            since,
-            now,
-            undefined,
-            ref,
-          ),
-          spec.followers(since, now, ref),
-          spec.media(ref),
-          spec.totals(["views"], since - days * DAY, since, undefined, ref),
-          spec.totals(
-            ["reach", "total_interactions"],
-            since - days * DAY,
-            since,
-            undefined,
-            ref,
-          ),
-        ]);
+        runMany(
+          [
+            spec.profile(ref),
+            spec.totals(["views"], since, now, "follow_type", ref),
+            spec.totals(
+              ["reach", "total_interactions"],
+              since,
+              now,
+              undefined,
+              ref,
+            ),
+            spec.followers(since, now, ref),
+            spec.media(ref),
+            spec.totals(["views"], since - days * DAY, since, undefined, ref),
+            spec.totals(
+              ["reach", "total_interactions"],
+              since - days * DAY,
+              since,
+              undefined,
+              ref,
+            ),
+          ],
+          a.id,
+        );
       let res;
       try {
         res = await batch(a.igRef || "me");

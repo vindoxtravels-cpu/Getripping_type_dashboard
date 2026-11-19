@@ -3319,9 +3319,20 @@
         (
           a,
         ) => `<div class="acctrow"><span class="av">${avatarHtml(a.username, a.avatar)}</span>
-    <div><b>@${esc(a.username)}</b><small class="${a.status === "error" ? "badc" : "muted"}">${a.status === "error" ? esc(a.error || "Needs attention") : a.id === act ? "Connected" : "Connected"}</small></div></div>`,
+    <div><b>@${esc(a.username)}</b><small class="${a.status === "error" ? "badc" : "muted"}">${a.status === "error" ? esc(a.error || "Needs attention") : a.id === act ? "Active" : "Connected"}</small></div>
+    <span class="spacer"></span>${a.id === act ? "" : `<button type="button" class="btn sm" data-use="${esc(a.id)}">Use</button>`}</div>`,
       )
       .join("");
+    $$("#igList [data-use]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          IG.setActive(b.dataset.use);
+          S.insightsAcct = b.dataset.use;
+          save();
+          renderIgList();
+          renderRailCards();
+        }),
+    );
     $("#igMain").textContent = !st.signedIn
       ? "Sign in with Composio"
       : st.connected

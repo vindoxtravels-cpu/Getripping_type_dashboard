@@ -204,7 +204,33 @@ global.fetch = async (url, init = {}) => {
         },
       };
     else if (n === "COMPOSIO_MULTI_EXECUTE_TOOL") {
-      calls.push({ tools: args.tools.map((t) => t.tool_slug) });
+      calls.push({
+        tools: args.tools.map((t) => t.tool_slug),
+        accounts: args.tools.map((t) => t.account),
+      });
+      if (args.tools.some((t) => !t.account)) {
+        const bad = {
+          successful: false,
+          data: {
+            results: args.tools.map((t, index) => ({
+              index,
+              tool_slug: t.tool_slug,
+              error:
+                'Multiple instagram accounts connected. Specify which to use via the "account" field',
+            })),
+          },
+          error: `${args.tools.length} out of ${args.tools.length} tools failed`,
+        };
+        const msg0 = {
+          jsonrpc: "2.0",
+          id: m.id,
+          result: {
+            isError: true,
+            content: [{ type: "text", text: JSON.stringify(bad) }],
+          },
+        };
+        return json(msg0);
+      }
       payload = {
         successful: true,
         data: {
