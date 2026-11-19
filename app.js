@@ -2275,6 +2275,83 @@
     out[days - 1] = end;
     return out;
   }
+  /* followers vs non-followers, day by day */
+  let chartTab = "followers",
+    splitBusy = "",
+    splitErr = "";
+  const CHART_TABS = [
+    ["followers", "Follower growth"],
+    ["views", "Views"],
+    ["reach", "Reach"],
+    ["interactions", "Interactions"],
+  ];
+  const PINK = "#ec4899",
+    GREEN = "#34d399";
+  function smoothPath(pts) {
+    if (pts.length < 2) return "";
+    let d = `M${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+    for (let i = 1; i < pts.length; i++) {
+      const [x0, y0] = pts[i - 1],
+        [x1, y1] = pts[i],
+        cx = (x0 + x1) / 2;
+      d += ` C${cx.toFixed(1)} ${y0.toFixed(1)} ${cx.toFixed(1)} ${y1.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+    }
+    return d;
+  }
+  function splitChartSvg(rows) {
+    const W = 900,
+      H = 240,
+      max = Math.max(1, ...rows.flatMap((r) => [r.f, r.n])),
+      top = Math.ceil(max * 1.12),
+      X = (i) => (i / Math.max(1, rows.length - 1)) * W,
+      Y = (v) => H - (v / top) * H;
+    const fp = rows.map((r, i) => [X(i), Y(r.f)]),
+      np = rows.map((r, i) => [X(i), Y(r.n)]);
+    const area = (pts) => `${smoothPath(pts)} L${W} ${H} L0 ${H}Z`;
+    const label = (r) =>
+      new Date(r.date + "T00:00:00").toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+    const ticks = [0, Math.floor((rows.length - 1) / 2), rows.length - 1];
+    return `<svg viewBox="0 0 ${W} ${H + 30}" class="areachart splitchart" role="img" aria-label="Followers and non-followers by day">
+      <defs><linearGradient id="gsf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${PINK}" stop-opacity=".3"/><stop offset="1" stop-color="${PINK}" stop-opacity="0"/></linearGradient>
+      <linearGradient id="gsn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${GREEN}" stop-opacity=".26"/><stop offset="1" stop-color="${GREEN}" stop-opacity="0"/></linearGradient></defs>
+      ${[0, 1, 2, 3].map((i) => `<line x1="0" x2="${W}" y1="${H - (i * H) / 3}" y2="${H - (i * H) / 3}" class="grid"/><text x="0" y="${H - (i * H) / 3 - 5}" class="axis">${fmt((top * i) / 3)}</text>`).join("")}
+      <path d="${area(np)}" fill="url(#gsn)"/><path d="${area(fp)}" fill="url(#gsf)"/>
+      <path class="line draw" pathLength="1" d="${smoothPath(np)}" fill="none" stroke="${GREEN}" stroke-width="3.5" stroke-linecap="round"/>
+      <path class="line draw" pathLength="1" d="${smoothPath(fp)}" fill="none" stroke="${PINK}" stroke-width="3.5" stroke-linecap="round"/>
+      ${rows.map((r, i) => `<g class="pt"><circle cx="${X(i).toFixed(1)}" cy="${Y(r.n).toFixed(1)}" r="4" fill="${GREEN}"/><circle cx="${X(i).toFixed(1)}" cy="${Y(r.f).toFixed(1)}" r="4" fill="${PINK}"/><title>${label(r)}: ${r.f.toLocaleString()} from followers · ${r.n.toLocaleString()} from non-followers</title></g>`).join("")}
+      ${ticks.map((i) => `<text x="${Math.min(W - 40, Math.max(0, X(i) - 20)).toFixed(0)}" y="${H + 22}" class="axis">${label(rows[i])}</text>`).join("")}
+    </svg>`;
+  }
+  function splitPanel(M, range) {
+    const tabs = `<div class="seg charttabs" id="chartTabs" role="tablist">${CHART_TABS.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${k === chartTab}" class="${k === chartTab ? "on" : ""}">${l}</button>`).join("")}</div>`;
+    const acc = M.live ? IG.get(M.id) : null,
+      sp = acc && acc.data && acc.data.split && acc.data.split[chartTab];
+    if (chartTab === "followers" || !M.live)
+      return { tabs: M.live ? tabs : "", body: null };
+    if (splitBusy === chartTab)
+      return {
+        tabs,
+        body: `<p class="muted pad">Loading the day-by-day split… this asks Instagram once per day.</p>`,
+      };
+    if (splitErr)
+      return { tabs, body: `<p class="muted pad">${esc(splitErr)}</p>` };
+    if (!sp || sp.days !== range)
+      return {
+        tabs,
+        body: `<p class="muted pad">Select the tab again to load the split.</p>`,
+      };
+    const tf = sp.rows.reduce((s, r) => s + r.f, 0),
+      tn = sp.rows.reduce((s, r) => s + r.n, 0),
+      all = tf + tn || 1;
+    const label = CHART_TABS.find((t) => t[0] === chartTab)[1];
+    return {
+      tabs,
+      body: `<div class="legendrow"><span class="lg"><i style="background:${PINK}"></i> Followers <b>${tf.toLocaleString()}</b> <em>${Math.round((tf / all) * 100)}%</em></span><span class="lg"><i style="background:${GREEN}"></i> Non-followers <b>${tn.toLocaleString()}</b> <em>${Math.round((tn / all) * 100)}%</em></span><span class="muted small">${label} per day, last ${sp.days} days</span></div>${splitChartSvg(sp.rows)}`,
+    };
+  }
   function areaPath(vals, w, h, lo, hi, close) {
     const span = hi - lo || 1,
       pts = vals.map((v, i) => [
@@ -2740,7 +2817,10 @@
   ${M.notes && M.notes.length ? `<details class="notes"><summary>${M.notes.length} metric${M.notes.length > 1 ? "s" : ""} unavailable</summary><ul>${M.notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul></details>` : ""}
   <div class="kpis">${kp.map(([ic, l, v, k, pv], i) => `<div class="kpi" style="--i:${i}"><div class="l">${svg(ic, 16)} ${l}</div><div class="v">${val(v, k)}</div>${M.live && pv != null ? `<div class="vs">${deltaChip(v, pv)} <span>vs previous ${S.igRange} days</span></div>` : ""}</div>`).join("")}</div>
   <div class="an">
-    <div class="panel"><h3>Followers</h3><div class="bigrow"><span class="big" data-count="${M.followers}" data-kind="int">0</span>${M.gain != null ? `<span class="delta ${M.gain < 0 ? "neg" : ""}">${M.gain >= 0 ? "+" : ""}${Math.round(M.gain).toLocaleString()}</span>` : ""}${sinceChip}</div>${chart}</div>
+    <div class="panel">${(() => {
+      const sp = splitPanel(M, range);
+      return `<div class="ph chartph"><h3>${sp.body ? "Followers vs non-followers" : "Followers"}</h3>${sp.tabs}</div>${sp.body ? sp.body : `<div class="bigrow"><span class="big" data-count="${M.followers}" data-kind="int">0</span>${M.gain != null ? `<span class="delta ${M.gain < 0 ? "neg" : ""}">${M.gain >= 0 ? "+" : ""}${Math.round(M.gain).toLocaleString()}</span>` : ""}${sinceChip}</div>${chart}`}`;
+    })()}</div>
     <div class="stack">
       <div class="panel"><h3>Who’s watching</h3>${
         aud
@@ -2757,6 +2837,28 @@
   ${M.carousels.length ? `<div class="carousels">${carCards}</div>` : '<div class="panel muted">No carousels in your recent posts.</div>'}
   <h3 class="sect">${M.live ? "Reel breakdown" : "Latest video"}</h3>${stats}`;
     bindCommon();
+    $$("#chartTabs [data-tab]").forEach(
+      (b) =>
+        (b.onclick = async () => {
+          chartTab = b.dataset.tab;
+          splitErr = "";
+          if (chartTab !== "followers" && M.live) {
+            const acc = IG.get(M.id),
+              have = acc.data.split && acc.data.split[chartTab];
+            if (!have || have.days !== range) {
+              splitBusy = chartTab;
+              viewAnalytics();
+              try {
+                await IG.split(M.id, chartTab, range);
+              } catch (e) {
+                splitErr = e.message;
+              }
+              splitBusy = "";
+            }
+          }
+          viewAnalytics();
+        }),
+    );
     $$("[data-like]").forEach(
       (b) => (b.onclick = () => openGen(M.reels[+b.dataset.like], M.live)),
     );

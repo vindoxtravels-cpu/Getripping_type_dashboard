@@ -3372,3 +3372,48 @@ pre.code {
   object-fit: cover;
   display: block;
 }
+
+/* analytics: followers vs non-followers */
+.chartph {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.charttabs {
+  flex-wrap: wrap;
+}
+.legendrow {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin: 6px 0 10px;
+  font-size: 14px;
+}
+.legendrow .lg {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.legendrow .lg i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.legendrow .lg b {
+  font-weight: 700;
+}
+.legendrow .lg em {
+  font-style: normal;
+  color: var(--muted);
+}
+.splitchart .pt circle {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.splitchart .pt:hover circle {
+  opacity: 1;
+}

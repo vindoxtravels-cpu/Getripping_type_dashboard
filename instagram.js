@@ -829,6 +829,58 @@
     return out;
   }
 
+  /** Daily totals of one metric split into followers and non-followers, one request per day (all in a single batch). */
+  const SPLIT_METRIC = {
+    views: "views",
+    reach: "reach",
+    interactions: "total_interactions",
+  };
+  async function split(id, metric, days) {
+    const a = accounts.get(id);
+    if (!a || !a.data) throw new IGError("Load the account first.");
+    const m = SPLIT_METRIC[metric];
+    if (!m) throw new IGError("That metric can't be split.");
+    days = Math.min(30, Math.max(2, days || 30));
+    const have = a.data.split && a.data.split[metric];
+    if (have && have.days === days && Date.now() - have.at < 10 * 60 * 1000)
+      return have;
+    const today = Math.floor(Date.now() / 1000 / DAY) * DAY,
+      starts = Array.from(
+        { length: days },
+        (_, i) => today - (days - 1 - i) * DAY,
+      );
+    const ref = a.igRef || "me";
+    const res = await runMany(
+      starts.map((t0) => spec.totals([m], t0, t0 + DAY, "follow_type", ref)),
+      a.id,
+    );
+    let firstErr = "";
+    const rows = res.map((r, i) => {
+      if (!r.ok) {
+        firstErr = firstErr || r.error;
+        return null;
+      }
+      const t = parseTotals(r.data)[m];
+      if (!t) return null;
+      const f = t.parts.FOLLOWER || 0,
+        n = t.parts.NON_FOLLOWER || 0;
+      return {
+        date: new Date(starts[i] * 1000).toISOString().slice(0, 10),
+        f,
+        n,
+        total: t.value || f + n,
+      };
+    });
+    const ok = rows.filter(Boolean);
+    if (!ok.length)
+      throw new IGError(
+        firstErr ||
+          "Instagram doesn't split this metric by followers for this account.",
+      );
+    a.data.split = a.data.split || {};
+    return (a.data.split[metric] = { days, rows: ok, at: Date.now() });
+  }
+
   /* ---------- public: data ---------- */
   async function refresh(id, days) {
     const a = accounts.get(id);
@@ -1085,6 +1137,7 @@
     signOut,
     sync,
     diagnose,
+    split,
     link,
     refresh,
     findByUrl,

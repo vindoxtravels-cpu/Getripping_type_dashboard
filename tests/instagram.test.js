@@ -465,6 +465,35 @@ const IG = window.IG;
       after.at(-1).token.grant_type === "refresh_token",
   );
 
+  const before7 = calls.filter((c) => c.tools).length;
+  const sp7 = await IG.split(accts[0].id, "views", 7);
+  const splitCall = calls.filter((c) => c.tools).at(-1);
+  check(
+    "the daily split asks once per day in one batch, naming the account",
+    calls.filter((c) => c.tools).length === before7 + 1 &&
+      splitCall.tools.length === 7 &&
+      splitCall.accounts.every((x) => x === "instagram_x"),
+  );
+  check(
+    "each day has follower and non-follower counts",
+    sp7.rows.length === 7 &&
+      sp7.rows.every((r) => r.f === 190 && r.n === 1781) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(sp7.rows[0].date),
+    JSON.stringify(sp7.rows[0]),
+  );
+  check(
+    "a split is kept on the account and reused",
+    IG.get(accts[0].id).data.split.views === sp7 &&
+      (await IG.split(accts[0].id, "views", 7)) === sp7,
+  );
+  let badSplit = null;
+  try {
+    await IG.split(accts[0].id, "followers", 7);
+  } catch (e) {
+    badSplit = e;
+  }
+  check("an unsupported metric is refused", !!badSplit);
+
   const diag = await IG.diagnose();
   check(
     "diagnostics report each step and succeed when all is well",
