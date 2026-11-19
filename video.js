@@ -205,6 +205,8 @@
     leak: false,
     bars: false,
     shine: false,
+    crt: false,
+    vhs: false,
   };
   const FX_OPTIONS = {
     caption: [
@@ -217,6 +219,7 @@
       "blur",
       "flip",
       "rise",
+      "spring",
     ],
     transition: [
       "ring",
@@ -228,7 +231,16 @@
       "spin",
       "blinds",
     ],
-    camera: ["push", "drift", "shake", "still", "zoomout", "orbit", "pulse"],
+    camera: [
+      "push",
+      "drift",
+      "shake",
+      "still",
+      "zoomout",
+      "orbit",
+      "pulse",
+      "handheld",
+    ],
     particles: [
       "none",
       "sparkles",
@@ -251,6 +263,8 @@
     ["leak", "Light leak"],
     ["shine", "Shine sweep"],
     ["bars", "Cinema bars"],
+    ["crt", "CRT screen"],
+    ["vhs", "VHS tape"],
   ];
   const OFF = {
     glow: false,
@@ -262,6 +276,8 @@
     leak: false,
     bars: false,
     shine: false,
+    crt: false,
+    vhs: false,
   };
   const PRESETS = {
     Clean: Object.assign({}, OFF, {
@@ -314,7 +330,8 @@
       glow: true,
       grain: true,
       chroma: true,
-      scanlines: true,
+      crt: true,
+      vhs: true,
     }),
     Epic: Object.assign({}, OFF, {
       caption: "flip",
@@ -401,6 +418,19 @@
   };
   const frac = (x) => x - Math.floor(x);
   const rnd = (n) => frac(Math.sin(n * 127.1 + 311.7) * 43758.5453);
+  /* spring and smooth value noise, adapted from Lemo-Opuscar core/lib.js (MIT, Lemomo / LemoLab): see THIRD_PARTY.md */
+  const spring = (t, k = 7, z = 0.35) => {
+    t = Math.max(0, t);
+    return (
+      1 - Math.exp(-z * k * t) * Math.cos(k * Math.sqrt(1 - z * z) * t * 1.6)
+    );
+  };
+  const vnoise = (x) => {
+    const i = Math.floor(x),
+      f = x - i,
+      u = f * f * (3 - 2 * f);
+    return rnd(i) + (rnd(i + 1) - rnd(i)) * u;
+  };
   const rgb = (hex) => {
     const h = hex.replace("#", "");
     return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
@@ -2173,6 +2203,44 @@
     ctx.restore();
   }
 
+  /* ---------- CRT / VHS post-processing (WebGL2, adapted from Lemo-Opuscar, see crt.js) ---------- */
+  let CRT = null,
+    CRT_CV = null,
+    CRT_FAIL = false;
+  function crtPass(ctx, t, fx) {
+    if (CRT_FAIL || !window.CRTPost) return;
+    try {
+      if (!CRT) {
+        CRT_CV = document.createElement("canvas");
+        CRT_CV.width = W;
+        CRT_CV.height = H;
+        CRT = window.CRTPost.makePost(CRT_CV);
+      }
+      const burst = fx.vhs
+        ? Math.min(
+            1,
+            Math.pow(Math.max(0, Math.sin(t * 1.7)), 12) +
+              (frac(t / 3.7) < 0.08 ? 0.8 : 0),
+          )
+        : 0;
+      CRT.render(ctx.canvas, null, Math.floor(t * 30), null, {
+        power: fx.crt ? clamp(t / 0.6) : 1,
+        scan: fx.crt ? 0.18 : 0,
+        grille: fx.crt ? 0.06 : 0,
+        corner: fx.crt ? 0.28 : 0.08,
+        glow: 0.3,
+        bleed: fx.vhs ? 7 : 0,
+        rshift: fx.vhs ? 2 : 0,
+        noiseA: fx.vhs ? 0.035 : 0.01,
+        track: burst * 0.8,
+      });
+      ctx.drawImage(CRT_CV, 0, 0, W, H);
+    } catch (e) {
+      CRT_FAIL = true; // no WebGL2 here: leave the picture as it is
+    }
+  }
+  const crtSupported = () => !!(window.CRTPost && window.CRTPost.supported());
+
   /* ---------- one frame ---------- */
   function draw(ctx, p, tt) {
     const t = clamp(tt, 0, p.duration - 0.001),
@@ -2196,7 +2264,12 @@
       tx = 0,
       ty = 0,
       crot = 0;
-    if (fx.camera === "zoomout") zoom = 1.08 - 0.06 * (st / s.dur);
+    if (fx.camera === "handheld") {
+      tx = (vnoise(t * 1.3) - 0.5) * 26;
+      ty = (vnoise(t * 1.1 + 50) - 0.5) * 20;
+      crot = (vnoise(t * 0.9 + 100) - 0.5) * 0.02;
+      zoom = 1.05;
+    } else if (fx.camera === "zoomout") zoom = 1.08 - 0.06 * (st / s.dur);
     else if (fx.camera === "orbit") {
       crot = Math.sin(t * 0.5) * 0.014;
       tx = Math.sin(t * 0.7) * 10;
@@ -2303,6 +2376,13 @@
           case "flip": {
             const e = easeOutBack(clamp(tw / 0.4));
             sy = Math.max(0.02, e);
+            break;
+          }
+          case "spring": {
+            const e = spring(tw / 0.55);
+            sc = 0.5 + 0.5 * e;
+            oy = (1 - e) * 46;
+            a = clamp(tw / 0.1);
             break;
           }
           case "rise": {
@@ -2552,6 +2632,11 @@
       ctx.fillStyle = `rgba(0,0,0,${1 - t / 0.25})`;
       ctx.fillRect(0, 0, W, H);
     }
+    if (fx.crt || fx.vhs) {
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+      crtPass(ctx, t, fx);
+    }
   }
 
   /* ---------- live preview (loops) ---------- */
@@ -2771,6 +2856,7 @@
     DEFAULT_FX,
     FX_OPTIONS,
     SWITCHES,
+    crtSupported,
     PRESETS,
     MOTIFS,
     plan,

@@ -133,6 +133,10 @@ A website can't sign in to Claude by itself: Anthropic's sign-in is for Claude C
 
 Safety: only sites you allow can reach the helper; a site gets no token until you enter the code (a new random code every time the helper starts, five wrong tries lock it); everything else still needs that token; and the helper still listens on `127.0.0.1` only. The token lives in that tab's `sessionStorage`. It needs the helper running whenever you use it, and it works in Chrome, Edge and Firefox (Chrome may ask to allow access to devices on your network); Safari blocks a secure page from reaching the helper. With no helper, use an API key.
 
+## Effects and credits
+
+Studio has 9 caption, 8 transition, 8 camera and 8 particle styles, 11 on/off screen effects and 8 presets. Two of the effects use MIT-licensed code from [Lemo-Opuscar](https://github.com/lemomo-ai/lemo-opuscar) by Lemomo (LemoLab): **CRT screen** and **VHS tape** (a WebGL2 post-process with scanlines, RGB grille, phosphor glow, chroma bleed, a power-on line and tape tracking noise, in `crt.js`), plus the **Spring** caption and **Handheld** camera (spring and smooth-noise helpers from its `core/lib.js`). If WebGL2 isn't available the CRT/VHS effect switches itself off. Only that project's code is used; its docs and style prompts are CC BY-NC and are not included. See `THIRD_PARTY.md`.
+
 ## Video formats and templates
 
 Pick **What kind of video?** (Faceless, Comic & cartoon, Explainer, Cinematic, News & editorial, Collage & craft, Retro & neon) in Discover, the importer or Studio. It narrows the template list, and Claude only chooses a template from that format.
@@ -199,6 +203,7 @@ A rule-based score out of 100, not a trained model. It starts at 100 and loses p
 - `video.js`: the video engine (scene planner, animated renderer, effects, recorder, beat synthesizer)
 - `instagram.js`: Composio sign-in (OAuth with PKCE) and the Instagram client
 - `worker.js`, `wrangler.jsonc`, `.assetsignore`: the Cloudflare deployment and its Composio proxy
+- `crt.js`, `THIRD_PARTY.md`: the CRT / VHS post-process adapted from Lemo-Opuscar (MIT) and its licence
 - `frames.js`: cuts a video into key frames in the browser (used when the helper isn't running)
 - `ai.js`: the Claude client (sign-in through the helper, or an API key)
 - `voice.js`: voice-over generation (Edge, ElevenLabs), joining, WAV export
