@@ -858,13 +858,14 @@
         a.igRef = a.igId;
         res = await batch(a.igRef);
       }
-      /* a long list can arrive cut short: ask for fewer posts at once */
-      if (!res[4].ok && /only part/.test(res[4].error)) {
+      /* a long list can arrive cut short: ask for fewer posts at once until it fits */
+      for (const n of [8, 4]) {
+        if (res[4].ok || !/only part/.test(res[4].error)) break;
         try {
-          const [again] = await runMany([spec.media(a.igRef || "me", 8)], a.id);
+          const [again] = await runMany([spec.media(a.igRef || "me", n)], a.id);
           if (again.ok) res[4] = again;
         } catch (e) {
-          /* keep the first answer */
+          break;
         }
       }
       const [rProfile, rViews, rOther, rFol, rMedia, rpViews, rpOther] = res;
