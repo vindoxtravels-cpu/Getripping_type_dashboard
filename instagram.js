@@ -40,6 +40,7 @@
       help: "",
       protected: false,
       needsPasscode: false,
+      needsLogin: false,
     };
   try {
     activeId = localStorage.getItem(ACTIVE);
@@ -88,6 +89,12 @@
       j = await res.json();
     } catch (e) {
       /* not json */
+    }
+    if (res.status === 401 && j && j.needsLogin) {
+      setup.needsLogin = true;
+      throw new IGError(j.error || "Sign in with Gmail to continue.", {
+        needsLogin: true,
+      });
     }
     if (res.status === 401 && j && j.needsPasscode) {
       setup.needsPasscode = true;
@@ -309,13 +316,14 @@
       j = await api("/api/composio/status");
     } catch (e) {
       setup.configured = null;
-      if (e.needsPasscode) setup.configured = true;
+      if (e.needsPasscode || e.needsLogin) setup.configured = true;
       throw e;
     }
     setup.configured = !!j.configured;
     setup.help = j.help || "";
     setup.protected = !!j.protected;
     setup.needsPasscode = false;
+    setup.needsLogin = false;
     const seen = new Set();
     (j.accounts || []).forEach((c) => {
       seen.add(c.id);
@@ -511,6 +519,11 @@
     refresh,
     findByUrl,
     setPasscode,
+    auth: {
+      start: () => api("/api/auth/start", {}),
+      finish: (pending) => api("/api/auth/finish", { pending }),
+      logout: () => api("/api/auth/logout", {}),
+    },
     setup: () => setup,
     connected: () => accounts.size > 0,
     IGError,

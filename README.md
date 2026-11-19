@@ -94,7 +94,7 @@ Insights reads your own accounts through [Composio](https://composio.dev). It is
 
 1. Each account must be a **Business or Creator** account.
 2. Give the server your Composio API key.
-   - **Deployed (Cloudflare):** `npx wrangler secret put COMPOSIO_API_KEY`. Also set `APP_PASSCODE` (`npx wrangler secret put APP_PASSCODE`); without it anyone with the site's link can read your insights.
+   - **Deployed (Cloudflare):** `npx wrangler secret put COMPOSIO_API_KEY`. Also set `ALLOWED_EMAILS` (`npx wrangler secret put ALLOWED_EMAILS`, for example `you@gmail.com`; several addresses separated by commas). The site then asks you to **Sign in with Gmail** through Composio (add a Gmail auth config in your Composio project): Studio reads only your address, signs a 7-day cookie, and deletes the temporary Gmail connection. Without `ALLOWED_EMAILS` (or the simpler shared `APP_PASSCODE`), anyone with the site's link can read your insights.
    - **On your computer:** put `COMPOSIO_API_KEY=ck_...` in `bridge/.env` (git-ignored) or run `COMPOSIO_API_KEY=... ./bridge/start.sh`.
 3. In your Composio project add an **Instagram** auth config (Composio managed is fine).
 4. Click **Connect Instagram → Connect an Instagram account**. Composio opens Instagram's own sign-in. Repeat for more accounts. Accounts already connected in Composio show up automatically; press **Check again**.
@@ -113,7 +113,7 @@ What you get, per account or for **All accounts** together: views, accounts reac
 ```bash
 npx wrangler deploy
 npx wrangler secret put COMPOSIO_API_KEY
-npx wrangler secret put APP_PASSCODE
+npx wrangler secret put ALLOWED_EMAILS
 ```
 
 What works on the deployed site, and what needs your computer:

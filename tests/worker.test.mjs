@@ -20,7 +20,17 @@ globalThis.fetch = async (url, init) => {
   if (u.includes("/auth_configs"))
     return reply({ items: [{ id: "ac_1", status: "ENABLED" }] });
   if (u.includes("/connected_accounts/link"))
-    return reply({ redirect_url: "https://connect.composio.dev/link/x" });
+    return reply({
+      redirect_url: "https://connect.composio.dev/link/x",
+      connected_account_id: "ca_login",
+    });
+  if (u.includes("/tools/execute/GMAIL_GET_PROFILE"))
+    return reply({
+      successful: true,
+      data: { emailAddress: globalThis.GMAIL || "me@gmail.com" },
+    });
+  if (u.includes("/connected_accounts/ca_login"))
+    return reply({ status: "ACTIVE" });
   if (u.includes("/tools/execute/"))
     return reply({ successful: true, data: { data: [], followers_count: 5 } });
   return new Response("{}", { status: 404 });
@@ -121,6 +131,74 @@ r = await call(KEY, "/api/composio/status", {
 check("refuses cross-site requests", r.status === 403);
 r = await call(KEY, "/api/composio/execute");
 check("execute is POST only", r.status === 405);
+
+/* Gmail sign-in */
+const GM = { ...KEY, ALLOWED_EMAILS: "Me@Gmail.com, other@gmail.com" };
+r = await call(GM, "/api/composio/status");
+j = await r.json();
+check(
+  "with ALLOWED_EMAILS the proxy needs a Gmail sign-in",
+  r.status === 401 && j.needsLogin === true,
+);
+r = await call(GM, "/api/auth/status");
+j = await r.json();
+check(
+  "auth status says sign-in is required",
+  j.required === true && j.email === null,
+);
+r = await post(GM, "/api/auth/start", {});
+j = await r.json();
+check(
+  "start returns Composio's Gmail link and a pending token",
+  r.status === 200 &&
+    j.url.startsWith("https://connect.composio.dev/") &&
+    !!j.pending,
+);
+const pending = j.pending;
+r = await post(GM, "/api/auth/finish", { pending: pending + "x" });
+check("a tampered pending token is refused", r.status === 400);
+r = await post(GM, "/api/auth/finish", { pending });
+j = await r.json();
+const cookie = (r.headers.get("set-cookie") || "").split(";")[0];
+check(
+  "an allowed Gmail address signs in",
+  r.status === 200 &&
+    j.email === "me@gmail.com" &&
+    cookie.startsWith("rs_session="),
+);
+check(
+  "the cookie is HttpOnly, Secure and SameSite=Strict",
+  /HttpOnly/.test(r.headers.get("set-cookie")) &&
+    /Secure/.test(r.headers.get("set-cookie")) &&
+    /SameSite=Strict/.test(r.headers.get("set-cookie")),
+);
+check(
+  "the temporary Gmail connection is deleted",
+  seen.some(
+    (x) => x.init && x.init.method === "DELETE" && x.url.includes("ca_login"),
+  ),
+);
+r = await call(GM, "/api/composio/status", { headers: { cookie } });
+check("the cookie unlocks the proxy", r.status === 200);
+r = await call(GM, "/api/composio/status", {
+  headers: { cookie: cookie.slice(0, -2) + "xx" },
+});
+check("a forged cookie is refused", r.status === 401);
+r = await call(
+  { ...GM, ALLOWED_EMAILS: "someone@else.com" },
+  "/api/composio/status",
+  { headers: { cookie } },
+);
+check(
+  "a cookie for an address that is no longer allowed is refused",
+  r.status === 401,
+);
+globalThis.GMAIL = "stranger@gmail.com";
+r = await post(GM, "/api/auth/finish", { pending });
+check("a Gmail address that is not allowed is refused", r.status === 403);
+globalThis.GMAIL = undefined;
+r = await post(KEY, "/api/auth/start", {});
+check("Gmail sign-in is off without ALLOWED_EMAILS", r.status === 409);
 
 console.log(failed ? `\n${failed} failed` : "\nall worker checks passed");
 process.exit(failed ? 1 : 0);

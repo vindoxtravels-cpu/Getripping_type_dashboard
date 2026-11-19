@@ -3313,7 +3313,9 @@
         ? `<div class="state off">${svg("key", 16)}<div><b>Composio isn’t set up on the server yet</b><span>${esc(st.help || "Add your Composio API key to the server, then press Check again.")}</span></div></div>`
         : "";
     $("#igPass").hidden = !st.needsPasscode;
-    $("#igLink").disabled = st.configured === false || st.needsPasscode;
+    $("#igLogin").hidden = !st.needsLogin;
+    $("#igLink").disabled =
+      st.configured === false || st.needsPasscode || st.needsLogin;
     $("#igList").innerHTML = list.length
       ? list
           .map(
@@ -3324,7 +3326,7 @@
     <span class="spacer"></span>${a.id === act ? "" : `<button type="button" class="btn sm" data-use="${esc(a.id)}">Use</button>`}</div>`,
           )
           .join("")
-      : st.configured === false || st.needsPasscode
+      : st.configured === false || st.needsPasscode || st.needsLogin
         ? ""
         : '<p class="muted small">No accounts yet. Connect one below. You can add as many as you manage.</p>';
     $$("#igList [data-use]").forEach(
@@ -3343,7 +3345,8 @@
       await IG.sync();
       if (!quiet) igMsg("");
     } catch (err) {
-      if (!quiet || err.needsPasscode) igMsg(err.message, "bad");
+      if (!quiet || err.needsPasscode || err.needsLogin)
+        igMsg(err.message, err.needsLogin ? "" : "bad");
     }
     if (!IG.activeId() && IG.list()[0]) IG.setActive(IG.list()[0].id);
     if (IG.activeId() && !IG.get(S.insightsAcct))
@@ -3380,6 +3383,40 @@
         "Finish signing in to Instagram in the new tab, then press Check again.",
         "ok",
       );
+    } catch (err) {
+      igMsg(err.message, "bad");
+    } finally {
+      busy(btn, false);
+    }
+  };
+  let loginPending = "";
+  $("#igLoginGo").onclick = async (e) => {
+    const btn = e.currentTarget;
+    busy(btn, true, "Opening…");
+    igMsg("");
+    try {
+      const r = await IG.auth.start();
+      loginPending = r.pending;
+      window.open(r.url, "_blank", "noopener");
+      $("#igLoginDone").hidden = false;
+      igMsg(
+        "Sign in with Google in the new tab, then press “I’ve signed in”.",
+        "ok",
+      );
+    } catch (err) {
+      igMsg(err.message, "bad");
+    } finally {
+      busy(btn, false);
+    }
+  };
+  $("#igLoginDone").onclick = async (e) => {
+    const btn = e.currentTarget;
+    busy(btn, true, "Checking…");
+    try {
+      const r = await IG.auth.finish(loginPending);
+      $("#igLoginDone").hidden = true;
+      igMsg(`Signed in as ${r.email}.`, "ok");
+      await igSync(true);
     } catch (err) {
       igMsg(err.message, "bad");
     } finally {

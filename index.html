@@ -144,6 +144,21 @@
         </p>
         <div id="igStatus"></div>
         <div id="igList" class="acctlist"></div>
+        <div id="igLogin" class="apibox" hidden>
+          <p class="muted small">
+            This site is private. Sign in with your Gmail address through
+            Composio to continue. Studio only reads your address, then removes
+            the Gmail connection.
+          </p>
+          <div class="row end">
+            <button type="button" class="btn primary" id="igLoginGo">
+              Sign in with Gmail
+            </button>
+            <button type="button" class="btn" id="igLoginDone" hidden>
+              I’ve signed in
+            </button>
+          </div>
+        </div>
         <div id="igPass" class="row" hidden>
           <label style="flex: 1"
             >Passcode
@@ -176,9 +191,9 @@
             </li>
           </ol>
           <p>
-            Set an <code>APP_PASSCODE</code> secret on the deployed site so only
-            you can read the insights. To disconnect an account, remove it in
-            the Composio dashboard.
+            Set an <code>ALLOWED_EMAILS</code> secret on the deployed site (your
+            Gmail address) so only you can sign in and read the insights. To
+            disconnect an account, remove it in the Composio dashboard.
           </p>
         </details>
         <div class="row end">
