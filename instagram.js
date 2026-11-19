@@ -401,8 +401,22 @@
     if (!item || typeof item !== "object")
       return { ok: false, data: {}, error: "No result came back." };
     const r = item.response || item.result || item;
-    let d = r.data !== undefined ? r.data : r.response_data;
+    /* Composio's server sends the result as "data_preview" (and sometimes "data" or "response_data") */
+    let d =
+      r.data !== undefined
+        ? r.data
+        : r.data_preview !== undefined
+          ? r.data_preview
+          : r.response_data;
     if (d === undefined) d = r;
+    let cut = false;
+    if (typeof d === "string") {
+      try {
+        d = JSON.parse(d);
+      } catch (e) {
+        cut = true; // only the start of a long reply arrived
+      }
+    }
     for (
       let i = 0;
       i < 3 &&
@@ -416,12 +430,13 @@
       i++
     )
       d = d.data;
-    const failed = r.successful === false || !!r.error;
+    const failed = r.successful === false || !!r.error || cut;
     return {
       ok: !failed && d && typeof d === "object",
       data: d && typeof d === "object" ? d : {},
       error: failed
         ? errText(r.error) ||
+          (cut ? "Composio sent only part of a long reply." : "") ||
           specific(collectErrors(item)).join(" · ") ||
           "Instagram refused the request."
         : "",
@@ -518,11 +533,11 @@
         until,
       },
     }),
-    media: (id = "me") => ({
+    media: (id = "me", limit = 20) => ({
       tool: "INSTAGRAM_GET_IG_USER_MEDIA",
       args: {
         ig_user_id: id,
-        limit: 25,
+        limit,
         fields:
           "id,caption,media_type,media_product_type,permalink,thumbnail_url,media_url,timestamp,like_count,comments_count,insights.metric(views,reach,saved,shares,total_interactions)",
       },
@@ -842,6 +857,15 @@
       if (!res[0].ok && a.igId && a.igRef !== a.igId) {
         a.igRef = a.igId;
         res = await batch(a.igRef);
+      }
+      /* a long list can arrive cut short: ask for fewer posts at once */
+      if (!res[4].ok && /only part/.test(res[4].error)) {
+        try {
+          const [again] = await runMany([spec.media(a.igRef || "me", 8)], a.id);
+          if (again.ok) res[4] = again;
+        } catch (e) {
+          /* keep the first answer */
+        }
       }
       const [rProfile, rViews, rOther, rFol, rMedia, rpViews, rpOther] = res;
       if (!rProfile.ok)

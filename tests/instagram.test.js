@@ -121,7 +121,14 @@ function execute(t) {
         })),
       };
   } else return { successful: false, error: "unknown tool" };
-  return { successful: true, data };
+  return replyMode === "preview"
+    ? { successful: true, data_preview: data }
+    : replyMode === "cut" && t.tool_slug === "INSTAGRAM_GET_IG_USER_MEDIA"
+      ? {
+          successful: true,
+          data_preview: JSON.stringify(data).slice(0, 80) + "...",
+        }
+      : { successful: true, data };
 }
 global.fetch = async (url, init = {}) => {
   url = String(url);
@@ -463,6 +470,25 @@ const IG = window.IG;
       JSON.stringify(dm.notes),
     );
   }
+  replyMode = "preview";
+  const dp = await IG.refresh(accts[0].id, 30);
+  check(
+    "a reply sent as data_preview is read",
+    dp.views === 1971 &&
+      dp.reels.length === 1 &&
+      dp.profile.followers === 5 &&
+      dp.profile.username === "me_ig",
+    JSON.stringify(dp.notes),
+  );
+  replyMode = "cut";
+  const dc = await IG.refresh(accts[0].id, 30);
+  check(
+    "a cut-short list becomes a note while the rest still loads",
+    dc.profile.followers === 5 &&
+      dc.views === 1971 &&
+      dc.notes.some((n) => /Media: Composio sent only part/.test(n)),
+    JSON.stringify(dc.notes),
+  );
   replyMode = "unreadable";
   let bad = null;
   try {
