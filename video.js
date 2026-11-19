@@ -211,6 +211,10 @@
     look: "none",
     orbit: "none",
     speed: 1,
+    layout: "center",
+    mark: "pill",
+    annot: "none",
+    alternate: false,
   };
   /* a whole-picture look (print or screen style), one at a time */
   const LOOKS = [
@@ -225,6 +229,9 @@
   ];
   const ORBITS = ["none", "flags", "icons", "dots"];
   const FX_OPTIONS = {
+    layout: ["center", "top"],
+    mark: ["pill", "underline", "circle", "strike", "stamp", "tag"],
+    annot: ["none", "reticle", "radar", "marks"],
     orbit: ORBITS,
     look: LOOKS,
     caption: [
@@ -267,6 +274,7 @@
       "handheld",
       "dutch",
       "breathe",
+      "punch",
     ],
     particles: [
       "none",
@@ -297,6 +305,7 @@
     ["crt", "CRT screen"],
     ["vhs", "VHS tape"],
     ["scratch", "Film scratches"],
+    ["alternate", "Alternate light and dark"],
   ];
   const OFF = {
     glow: false,
@@ -312,6 +321,10 @@
     vhs: false,
     scratch: false,
     look: "none",
+    layout: "center",
+    mark: "pill",
+    annot: "none",
+    alternate: false,
   };
   const PRESETS = {
     Clean: Object.assign({}, OFF, {
@@ -427,6 +440,35 @@
       look: "thermal",
       motifs: false,
     }),
+    "Annotated explainer": Object.assign({}, OFF, {
+      layout: "top",
+      mark: "underline",
+      caption: "rise",
+      camera: "punch",
+      transition: "slide",
+      particles: "none",
+      annot: "marks",
+      alternate: true,
+    }),
+    "Radar scan": Object.assign({}, OFF, {
+      layout: "top",
+      mark: "circle",
+      caption: "type",
+      camera: "breathe",
+      transition: "pixels",
+      particles: "none",
+      annot: "radar",
+      alternate: true,
+    }),
+    "Proof stamp": Object.assign({}, OFF, {
+      layout: "top",
+      mark: "stamp",
+      caption: "spring",
+      camera: "punch",
+      transition: "wipe",
+      particles: "none",
+      annot: "reticle",
+    }),
     Winter: Object.assign({}, OFF, {
       caption: "rise",
       transition: "wipe",
@@ -487,7 +529,8 @@
   }
 
   /* ---------- helpers ---------- */
-  let HAS_LOOK = false;
+  let HAS_LOOK = false,
+    TOP_LAYOUT = false;
   let FACE = ["800", FONT];
   const faceFont = (size) => `${FACE[0]} ${size}px ${FACE[1]}`;
   const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
@@ -680,10 +723,14 @@
   /* ---------- text layout (cached per scene) ---------- */
   function layout(ctx, s) {
     if (s.layout) return s.layout;
-    const maxW = W - 130,
-      maxH = s.motif ? 620 : 800,
-      cy = s.motif || HAS_LOOK ? H * 0.58 : H * 0.46;
-    let size = s.type === "hook" || s.type === "outro" ? 100 : 84,
+    const maxW = TOP_LAYOUT ? W - 150 : W - 130,
+      maxH = TOP_LAYOUT ? 330 : s.motif ? 620 : 800,
+      cy = TOP_LAYOUT ? 300 : s.motif || HAS_LOOK ? H * 0.58 : H * 0.46;
+    let size = TOP_LAYOUT
+        ? 56
+        : s.type === "hook" || s.type === "outro"
+          ? 100
+          : 84,
       lines,
       lh,
       space;
@@ -705,7 +752,11 @@
       });
       if (cur.length) lines.push({ items: cur, w: curW });
       lh = size * 1.16;
-      if ((lines.length * lh <= maxH && lines.length <= 9) || size <= 40) break;
+      if (
+        (lines.length * lh <= maxH && lines.length <= 9) ||
+        size <= (TOP_LAYOUT ? 30 : 40)
+      )
+        break;
       size -= 4;
     }
     const blockH = lines.length * lh,
@@ -2237,9 +2288,9 @@
           : Array.from({ length: 6 }, () => "");
     const n = items.length,
       cx = W / 2,
-      cy = H * 0.22,
-      rx = 255,
-      ry = 150,
+      cy = TOP_LAYOUT ? H * 0.58 : H * 0.22,
+      rx = TOP_LAYOUT ? 250 : 255,
+      ry = TOP_LAYOUT ? 190 : 150,
       e = easeOutCubic(clamp(stx / 0.6)),
       w = 0.7; // radians per second: one turn in about 9 s
     ctx.save();
@@ -2286,6 +2337,135 @@
       ctx.beginPath();
       ctx.ellipse(cx, cy, rx * e, ry * e, 0, 0, 6.2832);
       ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* ---------- annotations drawn over the visual area: a target reticle, a radar sweep, red marks ---------- */
+  function drawAnnot(ctx, p, s, ta, stx) {
+    const kind = p.fx.annot;
+    if (!kind || kind === "none") return;
+    const th = p.theme,
+      cx = W / 2,
+      cy = TOP_LAYOUT ? H * 0.58 : H * 0.24,
+      R = TOP_LAYOUT ? 230 : 120,
+      red = "#ef4444";
+    ctx.save();
+    ctx.lineCap = "round";
+    if (kind === "reticle") {
+      const e = easeOutCubic(clamp(stx / 0.5)),
+        k = 2.2 - 1.2 * e;
+      ctx.translate(cx, cy);
+      ctx.scale(k, k);
+      ctx.globalAlpha *= clamp(stx / 0.2);
+      ctx.strokeStyle = red;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 0.55, 0, 6.3);
+      ctx.stroke();
+      ctx.save();
+      ctx.rotate(ta * 0.6);
+      ctx.setLineDash([14, 12]);
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 0.82, 0, 6.3);
+      ctx.stroke();
+      ctx.restore();
+      ctx.lineWidth = 4;
+      [0, 1, 2, 3].forEach((q) => {
+        const a = (q * Math.PI) / 2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * R * 0.38, Math.sin(a) * R * 0.38);
+        ctx.lineTo(Math.cos(a) * R * 0.72, Math.sin(a) * R * 0.72);
+        ctx.stroke();
+      });
+      ctx.fillStyle = rgba(red, 0.7 + 0.3 * Math.sin(ta * 6));
+      ctx.beginPath();
+      ctx.arc(0, 0, 7 + 3 * Math.sin(ta * 6), 0, 6.3);
+      ctx.fill();
+      if (e >= 1 && Math.floor(ta * 3) % 2 === 0) {
+        ctx.font = `700 ${Math.round(R * 0.11)}px ${MONO}`;
+        ctx.textAlign = "center";
+        ctx.fillStyle = red;
+        ctx.fillText("TARGET LOCKED", 0, R * 1.02);
+      }
+    } else if (kind === "radar") {
+      ctx.translate(cx, cy);
+      ctx.globalAlpha *= clamp(stx / 0.3);
+      ctx.strokeStyle = rgba(th.fg, 0.2);
+      ctx.lineWidth = 2;
+      for (let i = 1; i <= 4; i++) {
+        ctx.beginPath();
+        ctx.arc(0, 0, ((R * i) / 4) * 1.05, 0, 6.3);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.moveTo(-R * 1.05, 0);
+      ctx.lineTo(R * 1.05, 0);
+      ctx.moveTo(0, -R * 1.05);
+      ctx.lineTo(0, R * 1.05);
+      ctx.stroke();
+      const ang = ta * 2.2;
+      for (let k = 0; k < 28; k++) {
+        ctx.fillStyle = rgba(th.ac, 0.34 * (1 - k / 28));
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, R * 1.05, ang - (k + 1) * 0.05, ang - k * 0.05);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.strokeStyle = th.ac;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(ang) * R * 1.05, Math.sin(ang) * R * 1.05);
+      ctx.stroke();
+      for (let i = 0; i < 6; i++) {
+        const ba = rnd(i + 3) * 6.2832,
+          br = R * (0.25 + rnd(i + 9) * 0.7),
+          since = (((ang - ba) % 6.2832) + 6.2832) % 6.2832,
+          al = Math.max(0, 1 - since / 3);
+        if (al <= 0) continue;
+        ctx.fillStyle = rgba(th.ac2, al);
+        ctx.beginPath();
+        ctx.arc(Math.cos(ba) * br, Math.sin(ba) * br, 8, 0, 6.3);
+        ctx.fill();
+      }
+    } else if (kind === "marks") {
+      const n = Math.max(
+        2,
+        Math.min(
+          5,
+          s.ws.filter((w) => /^[$€£]?\d|^[A-Z]{3,}/.test(w)).length + 2,
+        ),
+      );
+      for (let i = 0; i < n; i++) {
+        const at = 0.3 + i * 0.45,
+          pop = spring(clamp((stx - at) / 0.5));
+        if (stx < at) continue;
+        const a = i * 2.4 + s.index * 0.9,
+          x = cx + Math.cos(a) * R * 1.1,
+          y = cy + Math.sin(a) * R * 0.85,
+          z = 24 + (i % 3) * 8;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(pop, pop);
+        ctx.strokeStyle = red;
+        ctx.lineWidth = 9;
+        if (i % 2) {
+          ctx.beginPath();
+          ctx.moveTo(-z, -z);
+          ctx.lineTo(z, z);
+          ctx.moveTo(z, -z);
+          ctx.lineTo(-z, z);
+          ctx.stroke();
+        } else {
+          ctx.beginPath();
+          ctx.ellipse(0, 0, z * 1.5, z, -0.2, 0, 6.3);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
     }
     ctx.restore();
   }
@@ -2633,16 +2813,34 @@
     !!(window.FilmPost && window.FilmPost.supported());
 
   /* ---------- one frame ---------- */
+  /* every other scene in the opposite colours (light and dark scenes taking turns) */
+  const invertTheme = (th) => Object.assign({}, th, { bg: th.fg, fg: th.bg });
   function draw(ctx, p, tt) {
+    const real = p.theme;
+    try {
+      drawFrame(ctx, p, tt);
+    } finally {
+      p.theme = real; // a scene may have drawn with swapped colours
+    }
+  }
+  function drawFrame(ctx, p, tt) {
     const t = clamp(tt, 0, p.duration - 0.001),
-      fx = p.fx,
-      th = p.theme,
+      fx = p.fx;
+    let th = p.theme,
       light = lum(th.bg) > 0.6;
     HAS_LOOK = !!th.look;
+    TOP_LAYOUT = fx.layout === "top";
     FACE = th.face || ["800", FONT];
     const s =
       p.scenes.find((sc) => t >= sc.start && t < sc.start + sc.dur) ||
       p.scenes[p.scenes.length - 1];
+    if (fx.alternate && s.index % 2 === 1) {
+      p.theme = invertTheme(p.theme);
+      th = p.theme;
+      light = lum(th.bg) > 0.6;
+      HAS_LOOK = !!th.look;
+      FACE = th.face || ["800", FONT];
+    }
     const st = t - s.start,
       fnum = Math.floor(t * 30);
     /* speed: 1x to 2x runs the effects faster; -1x to -2x runs them backwards (spin the other way, drift the other way).
@@ -2664,7 +2862,19 @@
       tx = 0,
       ty = 0,
       crot = 0;
-    if (fx.camera === "dutch") {
+    if (fx.camera === "punch") {
+      let bump = 0;
+      s.ws.forEach((w, i) => {
+        if (
+          s.emph.has(wordKey(w)) ||
+          /^[$€£]?\d[\d,.]*[kKmM%]?[.,!?]?$|^[A-Z]{3,}[.,!?]?$/.test(w)
+        ) {
+          const d = st - s.at[i];
+          if (d >= 0) bump += Math.pow(Math.max(0, 1 - d / 0.4), 2) * 0.07;
+        }
+      });
+      zoom = 1.02 + Math.min(0.12, bump);
+    } else if (fx.camera === "dutch") {
       crot = 0.07 + Math.sin(ta * 0.4) * 0.012;
       tx = Math.sin(ta * 0.5) * 8;
       zoom = 1.14;
@@ -2717,7 +2927,7 @@
     ctx.scale(zoom * (trot ? tzoom : 1), zoom * (trot ? tzoom : 1));
     ctx.translate(-W / 2 + tx, -H / 2 + ty);
     drawBg(ctx, p, ta, s);
-    drawLook(ctx, p, t, s);
+    if (!TOP_LAYOUT) drawLook(ctx, p, t, s); // the templates' centrepieces would sit on top of a top caption
     if (fx.transition === "ring" && stx < 0.7) {
       const k = easeOutCubic(stx / 0.7);
       ctx.strokeStyle = rgba(th.ac, 0.5 * (1 - k));
@@ -2729,8 +2939,18 @@
     drawOrbit(ctx, p, ta, stx, "back");
     drawParticles(ctx, p, ta, stx);
     if (s.motif && !th.look)
-      drawMotif(ctx, s.motif, W / 2, H * 0.22, 190, stx, ta, th);
+      drawMotif(
+        ctx,
+        s.motif,
+        W / 2,
+        TOP_LAYOUT ? H * 0.58 : H * 0.22,
+        TOP_LAYOUT ? 250 : 190,
+        stx,
+        ta,
+        th,
+      );
     drawOrbit(ctx, p, ta, stx, "front");
+    drawAnnot(ctx, p, s, ta, stx);
     ctx.restore();
 
     /* text group */
@@ -2855,7 +3075,90 @@
         ctx.translate(-cx, -cy);
         if (blurPx > 0.3 && "filter" in ctx)
           ctx.filter = `blur(${blurPx.toFixed(1)}px)`;
-        if (active > 0.01) {
+        const markKind = fx.mark || "pill",
+          isEmph =
+            s.emph.has(wordKey(it.w)) ||
+            /^[$€£]?\d[\d,.]*[kKmM%]?[.,!?]?$|^[A-Z]{3,}[.,!?]?$/.test(it.w);
+        let skipText = false;
+        if (markKind !== "pill" && isEmph && s.type !== "outro") {
+          const mp = clamp(tw / 0.35),
+            bx = it.x,
+            by = it.y,
+            bw = it.ww,
+            red = "#ef4444";
+          ctx.save();
+          ctx.lineCap = "round";
+          if (markKind === "underline") {
+            ctx.strokeStyle = th.ac;
+            ctx.lineWidth = Math.max(5, L.size * 0.12);
+            const n = Math.max(2, Math.floor(bw / 40)),
+              y0 = by + L.size * 0.14;
+            ctx.beginPath();
+            ctx.moveTo(bx, y0);
+            for (let q = 1; q <= n; q++) {
+              if (q / n > mp) break;
+              ctx.lineTo(bx + (bw * q) / n, y0 + (q % 2 ? 4 : -3));
+            }
+            ctx.stroke();
+          } else if (markKind === "circle") {
+            ctx.strokeStyle = red;
+            ctx.lineWidth = Math.max(4, L.size * 0.09);
+            ctx.beginPath();
+            ctx.ellipse(
+              bx + bw / 2,
+              by - L.size * 0.32,
+              bw / 2 + 22,
+              L.size * 0.68,
+              -0.05,
+              -Math.PI / 2,
+              -Math.PI / 2 + 6.4 * mp,
+            );
+            ctx.stroke();
+          } else if (markKind === "strike") {
+            ctx.strokeStyle = red;
+            ctx.lineWidth = Math.max(5, L.size * 0.1);
+            ctx.beginPath();
+            ctx.moveTo(bx - 8, by - L.size * 0.3);
+            ctx.lineTo(bx - 8 + (bw + 16) * mp, by - L.size * 0.3 + 2);
+            ctx.stroke();
+          } else if (markKind === "stamp") {
+            const e = easeOutBack(clamp(tw / 0.22)),
+              label = it.w.toUpperCase().replace(/[.,!?]+$/, "");
+            ctx.translate(bx + bw / 2, by - L.size * 0.3);
+            ctx.rotate(-0.1);
+            ctx.scale(
+              1 + (1 - Math.min(1, e)) * 1.2,
+              1 + (1 - Math.min(1, e)) * 1.2,
+            );
+            ctx.font = faceFont(L.size * 0.95);
+            const w2 = ctx.measureText(label).width + 36;
+            ctx.strokeStyle = red;
+            ctx.lineWidth = 6;
+            rr(ctx, -w2 / 2, -L.size * 0.62, w2, L.size * 1.1, 10);
+            ctx.stroke();
+            ctx.fillStyle = red;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(label, 0, 0);
+            skipText = true;
+          } else if (markKind === "tag") {
+            const e = spring(clamp(tw / 0.45)),
+              label = "✕ " + it.w.toLowerCase().replace(/[.,!?]+$/, "");
+            ctx.translate(bx + bw / 2, by - L.size * 1.15);
+            ctx.scale(e, e);
+            ctx.font = `700 ${Math.round(L.size * 0.5)}px ${FONT}`;
+            const w2 = ctx.measureText(label).width + 30;
+            ctx.fillStyle = red;
+            rr(ctx, -w2 / 2, -L.size * 0.3, w2, L.size * 0.62, L.size * 0.31);
+            ctx.fill();
+            ctx.fillStyle = "#fff";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(label, 0, 1);
+          }
+          ctx.restore();
+        }
+        if (active > 0.01 && markKind === "pill") {
           ctx.fillStyle = rgba(th.ac, active);
           rr(
             ctx,
@@ -2885,7 +3188,11 @@
           ctx.shadowBlur = 22;
         }
         ctx.fillStyle =
-          active > 0.5 ? pillTxt : emph || s.type === "outro" ? th.ac : th.fg;
+          active > 0.5 && markKind === "pill"
+            ? pillTxt
+            : emph || s.type === "outro"
+              ? th.ac
+              : th.fg;
         if (sliceDx > 0.5) {
           const top = it.y - L.size * 1.2,
             mid = it.y - L.size * 0.32,
@@ -2903,7 +3210,7 @@
           ctx.clip();
           ctx.fillText(str, it.x + sliceDx, it.y);
           ctx.restore();
-        } else ctx.fillText(str, it.x, it.y);
+        } else if (!skipText) ctx.fillText(str, it.x, it.y);
         if ("filter" in ctx) ctx.filter = "none";
         ctx.restore();
       }),

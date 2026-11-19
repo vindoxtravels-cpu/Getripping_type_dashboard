@@ -133,14 +133,26 @@ A website can't sign in to Claude by itself: Anthropic's sign-in is for Claude C
 
 Safety: only sites you allow can reach the helper; a site gets no token until you enter the code (a new random code every time the helper starts, five wrong tries lock it); everything else still needs that token; and the helper still listens on `127.0.0.1` only. The token lives in that tab's `sessionStorage`. It needs the helper running whenever you use it, and it works in Chrome, Edge and Firefox (Chrome may ask to allow access to devices on your network); Safari blocks a secure page from reaching the helper. With no helper, use an API key.
 
-## Knowledge base
+## Scripts written by itself (knowledge base and learning loop)
 
-At the top of **Discover**, add notes about your business (services, offers, FAQs, facts you can stand behind). Paste text or import a `.txt`, `.md`, `.csv` or `.json` file (up to 20,000 characters a note, 60,000 in all). Press **Generate scripts**, choose an audience, tone, an optional angle and how many (1, 3 or 5), and Claude writes scripts using **only your notes**: it is told never to invent prices, statistics or guarantees. The scripts land in your library. Notes stay in this browser. It needs Claude connected (sign-in through the helper, or an API key).
+At the top of **Discover**, open the **Knowledge base**. Add notes about your business (services, offers, FAQs, facts you can stand behind; paste text or import `.txt`, `.md`, `.csv`, `.json`; up to 20,000 characters a note, 60,000 in all), pick an audience, tone and an optional angle, choose 1, 3 or 5 scripts and press **Write scripts**. Notes are optional: with none, Studio writes evergreen advice and states no statistics. With notes, Claude is told to use only your facts and never invent prices, numbers or guarantees.
+
+The hook is chosen by a learning loop:
+
+- There are ten **hook patterns** (number-led, question, mistake or warning, contrarian, insider secret, mini story, how-to promise, comparison, shock stat, direct callout).
+- Studio scores each pattern with a bandit (UCB1) using real results: the reels on your connected Instagram account (each counted once, rewarded by weighted engagement per view against your median: likes, comments, 3× shares, 4× saves) and the reels you link on the Calendar.
+- Each batch is written in the best-scoring patterns **plus one you have barely tried**, so it keeps exploring. Claude also sees your top three hooks (as a guide, never to copy) and your recent ones (to avoid repeats).
+- For every script Claude writes **five candidate hooks**; Studio scores them (short, concrete, about “you”, a number, no filler, and the traits that have earned lift on your account) and uses the best. The other four show as chips under the hook in Scripts; click one to swap it in. The new hook's pattern is then what gets rewarded when you post it.
+- The bandit is a simple, transparent one with a handful of numbers, not a trained model: it needs a few posts before its choices differ much from random, and it never sees reels it cannot read.
 
 ## Speed and orbit
 
 - **Speed** (Studio → Effects): 1×, 1.25×, 1.5×, 1.75×, 2× runs the effects and motion faster; −1×, −1.5×, −2× runs them backwards (spinning and drifting the other way). It changes the look of the motion only, not how long your script takes to speak.
 - **Orbit** puts chips turning clockwise around the scene icon, like the flags around the globe in the V-Visa country-comparison reel: **Flags** (picked from the countries named in your script), **Icons** or **Dots**. A new **Globe** icon appears for lines about countries, studying abroad, visas and the world.
+
+## Annotated explainer motion
+
+Inspired by the Getripping reels: **Caption position → Top** puts a small caption at the top with the visual below; **Emphasis** marks emphasised words (numbers, ALL-CAPS, or words Claude picks as the director) with an underline, hand-drawn circle, strike-through, a **PROOF**-style stamp or a red tag; **Annotations** adds a target reticle, a radar sweep or red ✕ and circle marks; the **Punch** camera bumps the zoom on each emphasised word; **Alternate light and dark** swaps colours every other scene; and the **Pixels** transition, **Globe** icon and **Orbit** chips come from the V-Visa reel. Presets: Annotated explainer, Radar scan and Proof stamp.
 
 ## Effects and credits
 
