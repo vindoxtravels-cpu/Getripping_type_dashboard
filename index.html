@@ -362,6 +362,96 @@
       </form>
     </dialog>
 
+    <dialog id="kbDialog">
+      <form method="dialog" class="dlg">
+        <h3>Knowledge base</h3>
+        <p class="muted">
+          Teach Studio about your business: services, offers, FAQs, facts you
+          can stand behind. Claude writes scripts from these notes only, so
+          nothing is made up. Notes stay in this browser.
+        </p>
+        <div id="kbDocs" class="kblist"></div>
+        <div class="lab">Add a note</div>
+        <label
+          >Title
+          <input
+            id="kbTitle"
+            type="text"
+            autocomplete="off"
+            placeholder="e.g. Study abroad packages"
+          />
+        </label>
+        <label
+          >Text
+          <textarea
+            id="kbText"
+            rows="5"
+            placeholder="Paste your services, prices, FAQs, who it's for, claims you can back up…"
+          ></textarea>
+        </label>
+        <div class="row">
+          <label class="btn ghost filebtn"
+            >Import a text file
+            <input
+              type="file"
+              id="kbFile"
+              accept=".txt,.md,.csv,.json,text/*"
+              hidden
+            />
+          </label>
+          <span class="spacer"></span>
+          <button type="button" class="btn" id="kbAdd">Add note</button>
+        </div>
+        <div class="lab">Generate scripts</div>
+        <div class="row">
+          <label style="flex: 1"
+            >Audience <small class="muted">(optional)</small>
+            <input
+              id="kbAud"
+              type="text"
+              autocomplete="off"
+              placeholder="e.g. Indian students planning to study abroad"
+          /></label>
+          <label
+            >Tone
+            <select id="kbTone">
+              <option value="">Balanced</option>
+              <option value="friendly and simple">Friendly</option>
+              <option value="confident and direct">Confident</option>
+              <option value="professional and trustworthy">Professional</option>
+              <option value="playful and energetic">Playful</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label style="flex: 1"
+            >Idea or angle <small class="muted">(optional)</small>
+            <input
+              id="kbTopic"
+              type="text"
+              autocomplete="off"
+              placeholder="e.g. Which country is cheapest?"
+          /></label>
+          <label
+            >How many
+            <select id="kbCount">
+              <option>1</option>
+              <option selected>3</option>
+              <option>5</option>
+            </select>
+          </label>
+        </div>
+        <p class="note" id="kbMsg" role="status"></p>
+        <ul class="kbresults" id="kbOut"></ul>
+        <div class="row end">
+          <button value="cancel" class="btn ghost">Close</button>
+          <button type="button" class="btn primary" id="kbGo">
+            Generate with Claude
+          </button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="genDialog">
       <form method="dialog" class="dlg">
         <h3>Make one like this</h3>

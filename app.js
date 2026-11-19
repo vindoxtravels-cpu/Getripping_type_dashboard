@@ -307,6 +307,7 @@
     music: true,
     voiceTab: "edge",
     format: "all",
+    kb: { docs: [], audience: "", tone: "" },
     insightsAcct: "",
     learn: { arms: {}, log: [] },
   });
@@ -333,6 +334,8 @@
     return sc;
   }
   if (RV.formatById(S.format).id !== S.format) S.format = "all";
+  if (!S.kb || !Array.isArray(S.kb.docs))
+    S.kb = { docs: [], audience: "", tone: "" };
   const fmtThemes = () => RV.themesFor(S.format);
   /** Keep a script's template inside the chosen format. */
   const themeList = (sc) => {
@@ -1009,6 +1012,188 @@
     }
   };
 
+  /* ---------- knowledge base: your notes, and scripts written from them ---------- */
+  const kbd = $("#kbDialog");
+  const kbMsg = (t, k) => noteTo("#kbMsg", t, k);
+  function renderKb() {
+    const docs = S.kb.docs;
+    $("#kbDocs").innerHTML = docs.length
+      ? docs
+          .map(
+            (d) =>
+              `<div class="kbdoc"><div><b>${esc(d.title)}</b><small class="muted">${d.text.length.toLocaleString()} characters</small></div><button type="button" class="linkbtn danger" data-kbdel="${esc(d.id)}">Remove</button></div>`,
+          )
+          .join("")
+      : '<p class="muted small">No notes yet. Add your first one below.</p>';
+    $$("#kbDocs [data-kbdel]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          S.kb.docs = S.kb.docs.filter((d) => d.id !== b.dataset.kbdel);
+          save();
+          renderKb();
+          if (onStage("feed")) viewFeed();
+        }),
+    );
+    $("#kbAud").value = S.kb.audience || "";
+    $("#kbTone").value = S.kb.tone || "";
+    $("#kbGo").disabled = !docs.length;
+  }
+  function openKb() {
+    [dlg, apid, impd, gend, igd].forEach((d) => {
+      if (d.open) d.close();
+    });
+    kbMsg("");
+    $("#kbOut").innerHTML = "";
+    $("#kbTitle").value = "";
+    $("#kbText").value = "";
+    renderKb();
+    kbd.showModal();
+  }
+  function addNote(title, text) {
+    text = String(text || "").trim();
+    if (!text) {
+      kbMsg("Add some text first.", "bad");
+      return false;
+    }
+    if (text.length > 20000) {
+      kbMsg(
+        "That note is over 20,000 characters. Split it into two notes.",
+        "bad",
+      );
+      return false;
+    }
+    if (
+      S.kb.docs.reduce((n, d) => n + d.text.length, 0) + text.length >
+      60000
+    ) {
+      kbMsg(
+        "The knowledge base is full (60,000 characters). Remove a note first.",
+        "bad",
+      );
+      return false;
+    }
+    S.kb.docs.push({
+      id: uid(),
+      title:
+        String(title || "")
+          .trim()
+          .slice(0, 80) ||
+        text.split("\n")[0].slice(0, 60) ||
+        "Note",
+      text,
+    });
+    save();
+    return true;
+  }
+  $("#kbAdd").onclick = () => {
+    if (addNote($("#kbTitle").value, $("#kbText").value)) {
+      $("#kbTitle").value = "";
+      $("#kbText").value = "";
+      kbMsg("Note added.", "ok");
+      renderKb();
+      if (onStage("feed")) viewFeed();
+    }
+  };
+  $("#kbFile").onchange = async (e) => {
+    const f = e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    if (f.size > 200000) {
+      kbMsg(
+        "That file is over 200 KB. Paste the important part instead.",
+        "bad",
+      );
+      return;
+    }
+    const text = await f.text();
+    if (/[\u0000-\u0008]/.test(text.slice(0, 2000))) {
+      kbMsg(
+        "That doesn't look like a text file. Use .txt, .md, .csv or .json.",
+        "bad",
+      );
+      return;
+    }
+    $("#kbTitle").value = f.name.replace(/\.[^.]+$/, "");
+    $("#kbText").value = text.slice(0, 20000);
+    kbMsg(
+      text.length > 20000
+        ? "Imported the first 20,000 characters. Review it, then press Add note."
+        : "Imported. Review it, then press Add note.",
+      "ok",
+    );
+  };
+  ["#kbAud", "#kbTone"].forEach((sel) =>
+    $(sel).addEventListener("change", () => {
+      S.kb.audience = $("#kbAud").value.trim();
+      S.kb.tone = $("#kbTone").value;
+      save();
+    }),
+  );
+  $("#kbGo").onclick = async (e) => {
+    if (!AI.configured()) {
+      kbd.close();
+      openApi();
+      return;
+    }
+    if (
+      ($("#kbTitle").value.trim() || $("#kbText").value.trim()) &&
+      !addNote($("#kbTitle").value, $("#kbText").value)
+    )
+      return;
+    $("#kbTitle").value = "";
+    $("#kbText").value = "";
+    renderKb();
+    const btn = e.currentTarget;
+    busy(btn, true, "Claude is writing…");
+    kbMsg("");
+    $("#kbOut").innerHTML = "";
+    try {
+      S.kb.audience = $("#kbAud").value.trim();
+      S.kb.tone = $("#kbTone").value;
+      const list = await AI.fromKnowledge({
+        docs: S.kb.docs,
+        brand: { audience: S.kb.audience, tone: S.kb.tone },
+        topic: $("#kbTopic").value.trim(),
+        count: +$("#kbCount").value,
+        niche: S.niche,
+      });
+      const made = list.map((parts) => {
+        const sc = scriptFrom(
+          Tools.blocksFrom(parts, { addCta: true }),
+          parts.title || shortTitle(parts.hook),
+          "From knowledge base",
+        );
+        applyLearned(sc);
+        fitFormat(sc);
+        addScript(sc);
+        return sc;
+      });
+      kbMsg(
+        `${made.length} script${made.length === 1 ? "" : "s"} added to your library.`,
+        "ok",
+      );
+      $("#kbOut").innerHTML = made
+        .map(
+          (sc) =>
+            `<li><span><b>${esc(sc.title)}</b><small class="muted">${esc(sc.blocks[0].text)}</small></span><button type="button" class="btn sm" data-open="${esc(sc.id)}">Open</button></li>`,
+        )
+        .join("");
+      $$("#kbOut [data-open]").forEach(
+        (b) =>
+          (b.onclick = () => {
+            S.activeId = b.dataset.open;
+            save();
+            kbd.close();
+            go(1);
+          }),
+      );
+    } catch (err) {
+      kbMsg(err.message, "bad");
+    } finally {
+      busy(btn, false);
+    }
+  };
+
   /* ---------- 01 Discover ---------- */
   function enableDrag(el, decide) {
     let sx = 0,
@@ -1068,6 +1253,7 @@
     ) => `<div class="reel ${cls}" ${cls === "r1" ? 'id="topReel"' : ""} style="--c1:${f.g[0]};--c2:${f.g[1]}">${extra || ""}<span class="sheen"></span><span class="play">${svg("play", 22)}</span>
     <div class="t">${esc(f.title)}</div><div class="m">${f.mult ? `<span class="mult">${svg("flame", 13)} ${f.mult}× usual</span>` : ""}<span class="views">${svg("eye", 14)} ${esc(f.views)}</span></div></div>`;
     $("#view").innerHTML = `
+  <section class="panel kbcard" id="kbCard"><div class="kbtext"><span class="ic">${svg("layers", 18)}</span><div><b>Knowledge base</b><p class="muted small">${S.kb.docs.length ? `${S.kb.docs.length} note${S.kb.docs.length === 1 ? "" : "s"} about your business. Generate scripts that use only your facts.` : "Teach Studio about your business once, then generate scripts from your own facts."}</p></div></div><div class="row"><button type="button" class="btn" id="kbOpen">${S.kb.docs.length ? "Open" : "Add notes"}</button><button type="button" class="btn primary" id="kbQuick" ${S.kb.docs.length ? "" : "disabled"}>${svg("sparkles", 16)} Generate scripts</button></div></section>
   <form class="importbar panel" id="importBar"><span class="ic">${svg("link", 18)}</span><input id="importUrl" placeholder="Paste an Instagram reel link to turn it into a script…" autocomplete="off"><button class="btn primary" type="submit">Import</button></form>
   <div class="fmtrow"><span class="lab">What kind of video?</span>${formatBar("fmtBar")}</div>
   <div class="toolbar"><span class="chip">${esc(S.niche)}</span><span class="chip hot">${svg("flame", 14)} Winning in your niche</span><span class="spacer"></span>
@@ -1158,6 +1344,8 @@
         }),
     );
     bindFormat("fmtBar");
+    $("#kbOpen").onclick = openKb;
+    $("#kbQuick").onclick = openKb;
     $("#revoice").onclick = () => openImport(sel && sel.url ? sel.url : "");
     $("#importBar").onsubmit = (e) => {
       e.preventDefault();
@@ -3462,16 +3650,43 @@
       : st.connected === false
         ? `<div class="state off">${svg("camera", 16)}<div><b>No Instagram account connected yet</b><span>Press Connect Instagram and sign in to the Business or Creator account you want to read.</span></div></div>`
         : "";
-    $("#igStatus").innerHTML = state;
+    $("#igStatus").innerHTML =
+      state +
+      (st.signedIn && st.hiddenCount
+        ? `<p class="small muted">${st.hiddenCount} account${st.hiddenCount === 1 ? "" : "s"} removed from Studio. <button type="button" class="linkbtn inline" id="igShowHidden">Show removed accounts</button></p>`
+        : "");
+    const sh = $("#igShowHidden");
+    if (sh)
+      sh.onclick = async () => {
+        IG.showHidden();
+        await igSync();
+      };
     $("#igList").innerHTML = list
       .map(
         (
           a,
         ) => `<div class="acctrow"><span class="av">${avatarHtml(a.username, a.avatar)}</span>
     <div><b>@${esc(a.username)}</b><small class="${a.status === "error" ? "badc" : "muted"}">${a.status === "error" ? esc(a.error || "Needs attention") : a.id === act ? "Active" : "Connected"}</small></div>
-    <span class="spacer"></span>${a.id === act ? "" : `<button type="button" class="btn sm" data-use="${esc(a.id)}">Use</button>`}</div>`,
+    <span class="spacer"></span>${a.id === act ? "" : `<button type="button" class="btn sm" data-use="${esc(a.id)}">Use</button>`}<button type="button" class="btn sm danger" data-hide="${esc(a.id)}" title="Take this account out of Studio. It stays connected in Composio.">Remove</button></div>`,
       )
       .join("");
+    $$("#igList [data-hide]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          const acct = IG.get(b.dataset.hide);
+          if (
+            !confirm(
+              `Remove @${acct ? acct.username : "this account"} from Studio? It stays connected in Composio; you can bring it back with “Show removed accounts”.`,
+            )
+          )
+            return;
+          IG.hide(b.dataset.hide);
+          S.insightsAcct = IG.activeId() || "";
+          save();
+          renderIgList();
+          renderRailCards();
+        }),
+    );
     $$("#igList [data-use]").forEach(
       (b) =>
         (b.onclick = () => {
@@ -3567,9 +3782,14 @@
     IG.signOut();
     S.insightsAcct = "";
     save();
-    igMsg("Signed out of Composio.");
+    $("#igDiag").hidden = true;
+    igMsg(
+      "Signed out. Studio forgot your Composio sign-in and your accounts. Press Sign in to use a different Composio account.",
+      "ok",
+    );
     renderIgList();
     renderRailCards();
+    if (onStage("analytics")) viewAnalytics();
   };
   igd.addEventListener("close", () => {
     renderRailCards();

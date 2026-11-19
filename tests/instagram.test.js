@@ -208,6 +208,13 @@ global.fetch = async (url, init = {}) => {
                   status: "ACTIVE",
                   is_default: true,
                 },
+                {
+                  id: "instagram_y",
+                  alias: "second",
+                  user_info: { username: "second_ig" },
+                  status: "active",
+                },
+                { id: "instagram_z", status: "initiated" },
               ],
             },
           ],
@@ -335,6 +342,10 @@ const IG = window.IG;
       "https://studio.example/" &&
       !("client_secret" in calls.find((c) => c.reg).reg),
   );
+  check(
+    "sign-in always asks for a fresh login, so another account can be chosen",
+    u.searchParams.get("prompt") === "login",
+  );
   const state = u.searchParams.get("state");
 
   location.search = "?code=abc&state=WRONG";
@@ -379,8 +390,10 @@ const IG = window.IG;
 
   const accts = await IG.sync();
   check(
-    "sync finds the connected Instagram account",
-    accts.length === 1 && accts[0].username === "me_ig",
+    "sync lists every active Instagram account and skips pending ones",
+    accts.length === 2 &&
+      accts[0].username === "me_ig" &&
+      accts[1].username === "second_ig",
   );
   const rpcs = calls.filter((c) => c.rpc).map((c) => c.rpc);
   check(
@@ -441,7 +454,7 @@ const IG = window.IG;
   sseMode = false;
   check(
     "plain JSON replies work as well as event streams",
-    (await IG.sync()).length === 1,
+    (await IG.sync()).length === 2,
   );
 
   /* an expired access token is refreshed with the refresh token */
@@ -460,7 +473,7 @@ const IG = window.IG;
   const after = calls.filter((c) => c.token);
   check(
     "a rejected token is refreshed and the call retried",
-    again.length === 1 &&
+    again.length === 2 &&
       after.length === before + 1 &&
       after.at(-1).token.grant_type === "refresh_token",
   );
@@ -592,7 +605,33 @@ const IG = window.IG;
   );
   replyMode = "text";
 
+  IG.setActive("instagram_y");
+  IG.hide("instagram_y");
+  check(
+    "a removed account leaves Studio and the active account moves on",
+    IG.list().length === 1 && IG.activeId() === "instagram_x",
+  );
+  const again2 = await IG.sync();
+  check(
+    "a removed account stays removed after checking again",
+    again2.length === 1 && IG.setup().hiddenCount === 1,
+    JSON.stringify([again2, IG.setup()]),
+  );
+  IG.showHidden();
+  check(
+    "removed accounts come back on request",
+    (await IG.sync()).length === 2,
+  );
+  localStorage.setItem("rs_ig_snap_instagram_x", "{}");
   IG.signOut();
+  check(
+    "sign out forgets the token, accounts, active account and saved history",
+    localStorage.getItem("rs_composio") === null &&
+      localStorage.getItem("rs_ig_active") === null &&
+      localStorage.getItem("rs_ig_snap_instagram_x") === null &&
+      IG.list().length === 0 &&
+      IG.activeId() === null,
+  );
   const out = await IG.diagnose();
   check(
     "diagnostics stop at the step that fails",

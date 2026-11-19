@@ -96,7 +96,7 @@ Insights reads your Instagram professional account through [Composio](https://co
 2. Click **Connect Instagram → Sign in with Composio**. Composio's own page opens (sign in or create a free account) and sends you straight back. This is a standard OAuth 2.1 sign-in with PKCE; Studio registers itself as a public client, so there is no secret to store.
 3. Press **Connect Instagram**. Composio opens Instagram's own sign-in. Then press **Check again**.
 
-Your Composio sign-in token stays in this browser (`localStorage`); **Sign out** removes it. Composio's sign-in server doesn't let browsers read its replies, so the two sign-in calls (register this site, exchange the code for a token) go through a tiny relay: `worker.js` when deployed, the helper on your computer. It holds no key or secret and only forwards a fixed set of fields to Composio. After that, Studio talks to Composio's MCP server (`connect.composio.dev/mcp`) directly from the browser, with your token. Every Instagram account connected in Composio is listed; pick one with **Use**, or view all together in Insights (each call names its account, so several accounts work).
+Your Composio sign-in token stays in this browser (`localStorage`). **Sign out** forgets the token, your accounts and their saved history, and the next sign-in always asks for a login again, so you can use a different Composio account. **Remove** on an account takes it out of Studio (it stays connected in Composio; **Show removed accounts** brings it back). Composio's sign-in server doesn't let browsers read its replies, so the two sign-in calls (register this site, exchange the code for a token) go through a tiny relay: `worker.js` when deployed, the helper on your computer. It holds no key or secret and only forwards a fixed set of fields to Composio. After that, Studio talks to Composio's MCP server (`connect.composio.dev/mcp`) directly from the browser, with your token. Every Instagram account connected in Composio is listed; pick one with **Use**, or view all together in Insights (each call names its account, so several accounts work).
 
 What you get: views, accounts reached, new followers and interactions **compared with the previous period**, follower growth (and the change since you connected, from snapshots saved each time you refresh), the follower / non-follower split, a posting streak, top reels with thumbnails, **carousel** reach, saves and shares, and per-reel likes, comments, shares, saves and reach.
 
@@ -132,6 +132,15 @@ A website can't sign in to Claude by itself: Anthropic's sign-in is for Claude C
 3. Claude Code, Edge voices, ffmpeg frames and speech-to-text now work from the deployed site, using your Claude plan. No API key.
 
 Safety: only sites you allow can reach the helper; a site gets no token until you enter the code (a new random code every time the helper starts, five wrong tries lock it); everything else still needs that token; and the helper still listens on `127.0.0.1` only. The token lives in that tab's `sessionStorage`. It needs the helper running whenever you use it, and it works in Chrome, Edge and Firefox (Chrome may ask to allow access to devices on your network); Safari blocks a secure page from reaching the helper. With no helper, use an API key.
+
+## Knowledge base
+
+At the top of **Discover**, add notes about your business (services, offers, FAQs, facts you can stand behind). Paste text or import a `.txt`, `.md`, `.csv` or `.json` file (up to 20,000 characters a note, 60,000 in all). Press **Generate scripts**, choose an audience, tone, an optional angle and how many (1, 3 or 5), and Claude writes scripts using **only your notes**: it is told never to invent prices, statistics or guarantees. The scripts land in your library. Notes stay in this browser. It needs Claude connected (sign-in through the helper, or an API key).
+
+## Speed and orbit
+
+- **Speed** (Studio → Effects): 1×, 1.25×, 1.5×, 1.75×, 2× runs the effects and motion faster; −1×, −1.5×, −2× runs them backwards (spinning and drifting the other way). It changes the look of the motion only, not how long your script takes to speak.
+- **Orbit** puts chips turning clockwise around the scene icon, like the flags around the globe in the V-Visa country-comparison reel: **Flags** (picked from the countries named in your script), **Icons** or **Dots**. A new **Globe** icon appears for lines about countries, studying abroad, visas and the world.
 
 ## Effects and credits
 

@@ -3417,3 +3417,67 @@ pre.code {
 .splitchart .pt:hover circle {
   opacity: 1;
 }
+
+/* knowledge base */
+.kbcard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.kbcard .kbtext {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 240px;
+  flex: 1;
+}
+.kbcard .kbtext p {
+  margin: 2px 0 0;
+}
+.kblist {
+  display: grid;
+  gap: 8px;
+  margin: 6px 0 10px;
+  max-height: 200px;
+  overflow: auto;
+}
+.kbdoc {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--glass);
+}
+.kbdoc small {
+  display: block;
+}
+.kbresults {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: grid;
+  gap: 8px;
+}
+.kbresults li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--glass);
+}
+.kbresults small {
+  display: block;
+  max-width: 420px;
+}
+.filebtn {
+  cursor: pointer;
+}

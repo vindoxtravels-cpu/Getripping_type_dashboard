@@ -273,6 +273,39 @@
     "You are a short-form video scriptwriter. You reply with only a JSON object, no prose and no code fences.";
 
   /** Turn a caption or transcript into a fresh script in the creator's own words. */
+  /** Scripts written only from the user's own notes (their knowledge base). Resolves an array of { title, hook, body, comment }. */
+  async function fromKnowledge({ docs, brand, topic, count, niche }) {
+    const notes = docs
+      .map(
+        (d, i) =>
+          `### Note ${i + 1}: ${d.title}\n${String(d.text).slice(0, 8000)}`,
+      )
+      .join("\n\n")
+      .slice(0, 24000);
+    const n = Math.max(1, Math.min(5, count || 3));
+    const j = await ask({
+      json: true,
+      max: Math.min(4000, 700 * n + 500),
+      system: SYS,
+      user: `Write ${n} different spoken scripts for short vertical videos${niche ? " for " + niche : ""}, using ONLY the facts in the knowledge base below. Never invent prices, statistics, names, dates or guarantees that are not in the notes; if a number is missing, write the idea without a number. Each script takes a different angle.
+${brand && brand.audience ? "Audience: " + brand.audience + "\n" : ""}${brand && brand.tone ? "Tone: " + brand.tone + "\n" : ""}${topic ? "Focus on this idea or angle: " + topic + "\n" : ""}Rules for each script: the hook is ONE line, under 12 words, with a number from the notes or a bold claim the notes support. Each body line is ONE idea, under 20 words. 4 to 7 body lines. End with one comment call-to-action line (for example: Comment "GUIDE" and follow for more). Plain text only, no emojis or hashtags.
+Return {"scripts": [{"title": "...", "hook": "...", "body": ["..."], "comment": "..."}]}.
+
+KNOWLEDGE BASE:
+${notes}`,
+    });
+    const list = (Array.isArray(j.scripts) ? j.scripts : []).filter(
+      (x) => x && x.hook,
+    );
+    if (!list.length)
+      throw new AIError("Claude did not return any scripts. Try again.");
+    return list.slice(0, n).map((x) => ({
+      title: String(x.title || "").trim(),
+      hook: String(x.hook).trim(),
+      body: arr(x.body),
+      comment: String(x.comment || "").trim(),
+    }));
+  }
   async function scriptFromText({ text, niche }) {
     const j = await ask({
       json: true,
@@ -459,6 +492,7 @@ Return {"title":"...","hook":"...","body":["..."],"comment":"...","breakdown":[{
     ask,
     askVision,
     scriptFromText,
+    fromKnowledge,
     direct,
     fromReference,
     reelToScript,

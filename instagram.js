@@ -10,6 +10,7 @@
     CLIENT = "rs_composio_client",
     PENDING = "rs_composio_pending",
     SNAP = "rs_ig_snap_",
+    HIDDEN = "rs_ig_hidden",
     DAY = 86400;
   const ISSUER = "https://connect.composio.dev";
   const MCP = "https://connect.composio.dev/mcp";
@@ -54,6 +55,8 @@
     }
   };
   const accounts = new Map();
+  /* accounts you removed from Studio (they stay connected in Composio) */
+  let hidden = new Set(jget(localStorage, HIDDEN) || []);
   let activeId = null,
     mcpSession = null,
     tokens = jget(localStorage, TOKEN),
@@ -148,6 +151,7 @@
       code_challenge: challenge,
       code_challenge_method: "S256",
       resource: MCP,
+      prompt: "login", // always ask, so signing out and in again can switch to another Composio account
     }).forEach(([k, v]) => u.searchParams.set(k, v));
     location.assign(u.toString());
   }
@@ -228,9 +232,30 @@
     tokens = null;
     mcpSession = null;
     jdel(localStorage, TOKEN);
+    jdel(sessionStorage, PENDING);
+    accounts.forEach((a) => jdel(localStorage, SNAP + a.id));
     accounts.clear();
+    activeId = null;
+    saveActive();
+    hidden = new Set();
+    jdel(localStorage, HIDDEN);
     setup.signedIn = false;
     setup.connected = null;
+    setup.note = "";
+  }
+  /** Take an account out of Studio. It stays connected in Composio; "showHidden" brings it back. */
+  function hide(id) {
+    hidden.add(id);
+    jset(localStorage, HIDDEN, [...hidden]);
+    jdel(localStorage, SNAP + id);
+    accounts.delete(id);
+    if (activeId === id) activeId = accounts.keys().next().value || null;
+    saveActive();
+    setup.connected = accounts.size > 0;
+  }
+  function showHidden() {
+    hidden = new Set();
+    jdel(localStorage, HIDDEN);
   }
 
   /* ---------- Composio's MCP server (JSON-RPC over HTTP) ---------- */
@@ -696,9 +721,11 @@
         (t) => String(t.toolkit).toLowerCase() === "instagram",
       );
     setup.signedIn = true;
-    const found = ((st && st.accounts) || []).filter(
+    const all = ((st && st.accounts) || []).filter(
       (a) => !a.status || String(a.status).toUpperCase() === "ACTIVE",
     );
+    const found = all.filter((a) => !hidden.has(a.id));
+    setup.hiddenCount = all.length - found.length;
     const keepers = new Map(accounts);
     accounts.clear();
     found.forEach((a) => {
@@ -728,7 +755,7 @@
         ),
       );
     });
-    setup.connected = found.length > 0;
+    setup.connected = found.length > 0 || setup.hiddenCount > 0;
     setup.note = "";
     if (!accounts.has(activeId))
       activeId = accounts.keys().next().value || null;
@@ -1137,6 +1164,8 @@
     signOut,
     sync,
     diagnose,
+    hide,
+    showHidden,
     split,
     link,
     refresh,
