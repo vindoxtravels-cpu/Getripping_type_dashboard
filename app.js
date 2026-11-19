@@ -627,7 +627,7 @@
       a = IG.active() && list.find((x) => x.id === IG.activeId());
     if (a) {
       c.className = "igcard on";
-      c.innerHTML = `<span class="av">${a.avatar ? `<img src="${esc(a.avatar)}" alt="" referrerpolicy="no-referrer">` : esc((a.username[0] || "y").toUpperCase())}</span>
+      c.innerHTML = `<span class="av">${avatarHtml(a.username, a.avatar)}</span>
       <span class="who"><b>@${esc(a.username)}</b><small><i class="dot ${a.status === "error" || a.status === "notoken" ? "bad" : ""}"></i>${a.status === "error" || a.status === "notoken" ? "Needs attention" : "Connected"}${list.length > 1 ? ` · ${list.length} accounts` : ""}</small></span>`;
     } else {
       c.className = "igcard";
@@ -825,7 +825,7 @@
     const media = r.mediaUrl
       ? ""
       : r.thumb
-        ? `<img src="${esc(r.thumb)}" alt="" referrerpolicy="no-referrer">`
+        ? `<img src="${esc(r.thumb)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`
         : `<div class="noimg">${svg("film2", 26)}</div>`;
     $("#impRef").innerHTML =
       `${media}<div class="refmeta"><b>${esc(r.author || "Instagram reel")}</b><a href="${esc(r.permalink)}" target="_blank" rel="noopener">Open the original ↗</a><span class="muted small">${r.caption ? esc(r.caption.slice(0, 140)) + (r.caption.length > 140 ? "…" : "") : "No caption loaded"}</span></div>`;
@@ -2649,7 +2649,7 @@
           x,
           i,
         ) => `<div class="trw" style="--i:${i}"><${x.permalink ? `a href="${esc(x.permalink)}" target="_blank" rel="noopener"` : "div"} class="tr" style="--c1:${x.g ? x.g[0] : "#312e81"};--c2:${x.g ? x.g[1] : "#0b0b1a"}">
-    ${x.thumb ? `<img src="${esc(x.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}<span class="shade"></span>${x.mult ? `<span class="mult">${x.mult}×</span>` : ""}<span class="vchip">${svg("eye", 13)} ${fmt(x.views)} views</span><div class="cap2">${esc(x.title)}<span class="rstats">${fmt(x.likes)} likes · ${fmt(x.comments)} comments · ${fmt(x.saves)} saves</span></div></${x.permalink ? "a" : "div"}>
+    ${x.thumb ? `<img src="${esc(x.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}<span class="shade"></span>${x.mult ? `<span class="mult">${x.mult}×</span>` : ""}<span class="vchip">${svg("eye", 13)} ${fmt(x.views)} views</span><div class="cap2">${esc(x.title)}<span class="rstats">${fmt(x.likes)} likes · ${fmt(x.comments)} comments · ${fmt(x.saves)} saves</span></div></${x.permalink ? "a" : "div"}>
     <button class="btn sm" type="button" data-like="${i}">${svg("wand", 14)} Make one like this</button></div>`,
       )
       .join("");
@@ -2660,7 +2660,7 @@
           x,
           i,
         ) => `<${x.permalink ? `a href="${esc(x.permalink)}" target="_blank" rel="noopener"` : "div"} class="cr" style="--c1:${x.g ? x.g[0] : "#312e81"};--c2:${x.g ? x.g[1] : "#0b0b1a"};--i:${i}">
-    ${x.thumb ? `<img src="${esc(x.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}<span class="shade"></span><div class="cap2">${esc(x.title)}<span class="cstats"><em>${fmt(x.reach || x.likes)} reach</em><em>${fmt(x.saves)} saves</em><em>${fmt(x.shares)} shares</em></span></div></${x.permalink ? "a" : "div"}>`,
+    ${x.thumb ? `<img src="${esc(x.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}<span class="shade"></span><div class="cap2">${esc(x.title)}<span class="cstats"><em>${fmt(x.reach || x.likes)} reach</em><em>${fmt(x.saves)} saves</em><em>${fmt(x.shares)} shares</em></span></div></${x.permalink ? "a" : "div"}>`,
       )
       .join("");
     let stats = "";
@@ -2809,7 +2809,7 @@
       if (med && e) why.push(`${(e / med).toFixed(1)}× your median engagement`);
     }
     $("#genRef").innerHTML =
-      `${reel.thumb ? `<img src="${esc(reel.thumb)}" alt="" referrerpolicy="no-referrer">` : `<div class="noimg" style="background:linear-gradient(160deg,${reel.g ? reel.g[0] : "#312e81"},${reel.g ? reel.g[1] : "#0b0b1a"})">${svg("film2", 26)}</div>`}<div class="refmeta"><b>${esc(reel.title)}</b><span class="muted small">${fmt(reel.views)} views${live ? "" : " · sample reel"}</span></div>`;
+      `${reel.thumb ? `<img src="${esc(reel.thumb)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : `<div class="noimg" style="background:linear-gradient(160deg,${reel.g ? reel.g[0] : "#312e81"},${reel.g ? reel.g[1] : "#0b0b1a"})">${svg("film2", 26)}</div>`}<div class="refmeta"><b>${esc(reel.title)}</b><span class="muted small">${fmt(reel.views)} views${live ? "" : " · sample reel"}</span></div>`;
     $("#genWhy").innerHTML = why.length
       ? why.map((w) => `<span class="chip blue">${esc(w)}</span>`).join("")
       : '<span class="muted small">Claude will study its structure.</span>';

@@ -90,7 +90,21 @@ function execute(t) {
       media_count: 16,
     };
   else if (t.tool_slug === "INSTAGRAM_GET_IG_USER_MEDIA")
-    data = { data: media };
+    data = {
+      data:
+        replyMode === "noInsights"
+          ? media.map(({ insights, ...rest }) => ({
+              ...rest,
+              thumbnail_url: "https://x.cdninstagram.com/a.jpg",
+              media_url: "https://x.cdninstagram.com/very/long/url...",
+            }))
+          : media,
+    };
+  else if (t.tool_slug === "INSTAGRAM_GET_IG_MEDIA_INSIGHTS")
+    data = {
+      data: (media.find((m) => m.id === a.ig_media_id) || media[0]).insights
+        .data,
+    };
   else if (t.tool_slug === "INSTAGRAM_GET_USER_INSIGHTS") {
     if (a.metric[0] === "follower_count")
       return { successful: false, error: "needs 100 followers" };
@@ -470,6 +484,21 @@ const IG = window.IG;
       JSON.stringify(dm.notes),
     );
   }
+  replyMode = "noInsights";
+  const ni = await IG.refresh(accts[0].id, 30);
+  check(
+    "when post insights are missing from the list they are fetched per post",
+    ni.reels[0].views === 120 &&
+      ni.reels[0].saves === 2 &&
+      ni.carousels[0].reach === 50,
+    JSON.stringify(ni.reels[0]),
+  );
+  check(
+    "a thumbnail address that was cut short is dropped, a whole one kept",
+    ni.reels[0].thumb === "https://x.cdninstagram.com/a.jpg" &&
+      ni.reels[0].mediaUrl === "",
+    JSON.stringify([ni.reels[0].thumb, ni.reels[0].mediaUrl]),
+  );
   replyMode = "preview";
   const dp = await IG.refresh(accts[0].id, 30);
   check(

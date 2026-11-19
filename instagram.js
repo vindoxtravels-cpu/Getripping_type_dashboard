@@ -610,6 +610,11 @@
     }
     return { cells, daysWith, daysTotal, streak };
   }
+  /** An address Composio cut short (ends in an ellipsis) can't be loaded, so treat it as missing. */
+  const cleanUrl = (u) =>
+    typeof u === "string" && /^https?:\/\//.test(u) && !/(\.\.\.|…)$/.test(u)
+      ? u
+      : "";
   function shape(m, x, acct) {
     x = x || {};
     const caption = m.caption || "";
@@ -618,8 +623,8 @@
       acct,
       caption,
       title: (caption.split("\n")[0] || "Untitled").slice(0, 90),
-      thumb: m.thumbnail_url || m.media_url || "",
-      mediaUrl: m.media_url || "",
+      thumb: cleanUrl(m.thumbnail_url) || cleanUrl(m.media_url) || "",
+      mediaUrl: cleanUrl(m.media_url),
       permalink: m.permalink || "",
       ts: m.timestamp,
       type:
@@ -910,7 +915,7 @@
       const profile = {
         username: pd.username || a.alias || "",
         name: pd.name || "",
-        avatar: pd.profile_picture_url || "",
+        avatar: cleanUrl(pd.profile_picture_url),
         followers: pd.followers_count || 0,
         follows: pd.follows_count || 0,
         mediaCount: pd.media_count || 0,
@@ -939,11 +944,62 @@
       const carRaw = list2
         .filter((m) => m.media_type === "CAROUSEL_ALBUM")
         .slice(0, 12);
+      /* Composio's reply can leave out the insights nested inside each post: ask for them per post */
+      const insMap = new Map();
+      list2.forEach((m) => {
+        const x = insightsOf(m);
+        if (x.views !== undefined || x.reach !== undefined) insMap.set(m.id, x);
+      });
+      const missing = [...reelsRaw.slice(0, 12), ...carRaw.slice(0, 6)].filter(
+        (m) => !insMap.has(m.id),
+      );
+      if (missing.length) {
+        try {
+          const rs = await runMany(
+            missing.map((m) => ({
+              tool: "INSTAGRAM_GET_IG_MEDIA_INSIGHTS",
+              args: {
+                ig_media_id: m.id,
+                metric:
+                  m.media_type === "CAROUSEL_ALBUM"
+                    ? ["reach", "saved", "shares", "total_interactions"]
+                    : [
+                        "views",
+                        "reach",
+                        "saved",
+                        "shares",
+                        "total_interactions",
+                      ],
+              },
+            })),
+            a.id,
+          );
+          let firstErr = "";
+          rs.forEach((r, i) => {
+            if (!r.ok) {
+              firstErr = firstErr || r.error;
+              return;
+            }
+            const x = {};
+            rows(r.data).forEach((d) => {
+              x[d.name] =
+                d.values && d.values[0]
+                  ? d.values[0].value
+                  : d.total_value && d.total_value.value;
+            });
+            insMap.set(missing[i].id, x);
+          });
+          if (firstErr) notes.push("Post insights: " + firstErr);
+        } catch (e) {
+          notes.push("Post insights: " + e.message);
+        }
+      }
+      const insFor = (m) => insMap.get(m.id) || insightsOf(m);
       const reels = reelsRaw
-        .map((m) => shape(m, insightsOf(m), a.id))
+        .map((m) => shape(m, insFor(m), a.id))
         .sort((x, y) => y.views - x.views);
       const carousels = carRaw
-        .map((m) => shape(m, insightsOf(m), a.id))
+        .map((m) => shape(m, insFor(m), a.id))
         .sort((x, y) => (y.reach || y.likes) - (x.reach || x.likes));
       const sorted = reels
           .map((r) => r.views)
@@ -992,7 +1048,7 @@
         heat: buildHeat(list2),
         reels,
         carousels,
-        media: list2.map((m) => shape(m, insightsOf(m), a.id)),
+        media: list2.map((m) => shape(m, insFor(m), a.id)),
         snapshots: snapshots(a, profile.followers),
       };
       a.status = "ok";
