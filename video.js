@@ -207,8 +207,22 @@
     shine: false,
     crt: false,
     vhs: false,
+    scratch: false,
+    look: "none",
   };
+  /* a whole-picture look (print or screen style), one at a time */
+  const LOOKS = [
+    "none",
+    "dither",
+    "halftone",
+    "riso",
+    "pixel",
+    "thermal",
+    "duotone",
+    "xray",
+  ];
   const FX_OPTIONS = {
+    look: LOOKS,
     caption: [
       "pop",
       "type",
@@ -220,6 +234,9 @@
       "flip",
       "rise",
       "spring",
+      "scramble",
+      "stamp",
+      "slice",
     ],
     transition: [
       "ring",
@@ -230,6 +247,9 @@
       "wipe",
       "spin",
       "blinds",
+      "iris",
+      "whip",
+      "burn",
     ],
     camera: [
       "push",
@@ -240,6 +260,8 @@
       "orbit",
       "pulse",
       "handheld",
+      "dutch",
+      "breathe",
     ],
     particles: [
       "none",
@@ -250,6 +272,9 @@
       "snow",
       "stars",
       "embers",
+      "matrix",
+      "dust",
+      "flow",
     ],
   };
   /* on/off effects layered over the picture */
@@ -265,6 +290,7 @@
     ["bars", "Cinema bars"],
     ["crt", "CRT screen"],
     ["vhs", "VHS tape"],
+    ["scratch", "Film scratches"],
   ];
   const OFF = {
     glow: false,
@@ -278,6 +304,8 @@
     shine: false,
     crt: false,
     vhs: false,
+    scratch: false,
+    look: "none",
   };
   const PRESETS = {
     Clean: Object.assign({}, OFF, {
@@ -342,6 +370,56 @@
       vignette: true,
       bars: true,
       shine: true,
+    }),
+    "Silent Film": Object.assign({}, OFF, {
+      caption: "type",
+      transition: "iris",
+      camera: "breathe",
+      particles: "dust",
+      look: "duotone",
+      scratch: true,
+      grain: true,
+      vignette: true,
+      motifs: false,
+    }),
+    Zine: Object.assign({}, OFF, {
+      caption: "stamp",
+      transition: "whip",
+      camera: "dutch",
+      particles: "none",
+      look: "riso",
+      grain: true,
+    }),
+    Terminal: Object.assign({}, OFF, {
+      caption: "scramble",
+      transition: "glitch",
+      camera: "still",
+      particles: "matrix",
+      glow: true,
+      crt: true,
+    }),
+    "Pop Print": Object.assign({}, OFF, {
+      caption: "stamp",
+      transition: "burn",
+      camera: "pulse",
+      particles: "confetti",
+      look: "halftone",
+    }),
+    "1-bit": Object.assign({}, OFF, {
+      caption: "slice",
+      transition: "iris",
+      camera: "handheld",
+      particles: "none",
+      look: "dither",
+      motifs: false,
+    }),
+    Thermal: Object.assign({}, OFF, {
+      caption: "blur",
+      transition: "flash",
+      camera: "handheld",
+      particles: "flow",
+      look: "thermal",
+      motifs: false,
     }),
     Winter: Object.assign({}, OFF, {
       caption: "rise",
@@ -1904,6 +1982,74 @@
         ctx.fillRect(-7, -3.5, 14, 7);
         ctx.restore();
       }
+    } else if (kind === "matrix") {
+      ctx.save();
+      ctx.font = `700 22px ${MONO}`;
+      ctx.textBaseline = "top";
+      const GL = "01ABCDEF<>/\\{}[]#$%&*+=アイウエオカキクケコ",
+        cols = 26,
+        cw = W / cols;
+      for (let c = 0; c < cols; c++) {
+        const sp = 140 + rnd(c + 3) * 260,
+          len = 8 + Math.floor(rnd(c + 9) * 10),
+          head = (t * sp + rnd(c + 1) * H * 2) % (H + len * 26);
+        for (let j = 0; j < len; j++) {
+          const y = head - j * 26;
+          if (y < -26 || y > H) continue;
+          const ch =
+            GL[
+              Math.floor(
+                rnd(c * 31 + j * 7 + Math.floor(t * (j ? 4 : 12))) * GL.length,
+              )
+            ];
+          ctx.fillStyle =
+            j === 0 ? rgba(th.fg, 0.9) : rgba(th.ac, 0.55 * (1 - j / len));
+          ctx.fillText(ch, c * cw + 6, y);
+        }
+      }
+      ctx.restore();
+    } else if (kind === "dust") {
+      for (let i = 0; i < 50; i++) {
+        const z = rnd(i + 3),
+          x =
+            (rnd(i + 1) * W + Math.sin(t * 0.3 + i) * 30 + t * (6 + z * 14)) %
+            W,
+          y = (((rnd(i + 40) * H - t * (8 + z * 18)) % H) + H) % H,
+          r = 1 + z * 3.2,
+          g = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
+        g.addColorStop(0, rgba(th.fg, 0.1 + 0.35 * z));
+        g.addColorStop(1, rgba(th.fg, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 3, 0, 6.3);
+        ctx.fill();
+      }
+    } else if (kind === "flow") {
+      ctx.lineCap = "round";
+      for (let i = 0; i < 70; i++) {
+        const x = rnd(i + 1) * W + Math.sin(t * 0.5 + i) * 30,
+          y = rnd(i + 40) * H + Math.cos(t * 0.4 + i * 1.3) * 30,
+          ang =
+            (vnoise(x * 0.004 + t * 0.15 + i * 0.01) +
+              vnoise(y * 0.004 - t * 0.1 + 50)) *
+            Math.PI *
+            2,
+          len = 34 + rnd(i + 7) * 40;
+        ctx.strokeStyle = rgba(
+          i % 3 ? th.ac2 : th.fg,
+          0.16 + 0.26 * rnd(i + 5),
+        );
+        ctx.lineWidth = 2 + rnd(i + 11) * 2.5;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(
+          x + Math.cos(ang) * len * 0.6,
+          y + Math.sin(ang) * len * 0.6 + 10,
+          x + Math.cos(ang) * len,
+          y + Math.sin(ang) * len,
+        );
+        ctx.stroke();
+      }
     } else if (kind === "rain") {
       ctx.lineCap = "round";
       for (let i = 0; i < 70; i++) {
@@ -2241,6 +2387,44 @@
   }
   const crtSupported = () => !!(window.CRTPost && window.CRTPost.supported());
 
+  /* ---------- film looks (WebGL2, see post.js) ---------- */
+  let FILM = null,
+    FILM_CV = null,
+    FILM_FAIL = false;
+  const hex3 = (h) => rgb(h).map((v) => v / 255);
+  function lookPass(ctx, p, t, fx) {
+    if (FILM_FAIL || !window.FilmPost) return;
+    try {
+      if (!FILM) {
+        FILM_CV = document.createElement("canvas");
+        FILM_CV.width = W;
+        FILM_CV.height = H;
+        FILM = window.FilmPost.make(FILM_CV);
+      }
+      const th = p.theme,
+        dark = lum(th.bg) < 0.5;
+      let a = hex3(th.bg),
+        b = hex3(th.fg),
+        paper = [1, 1, 1];
+      if (fx.look === "riso") {
+        a = hex3(th.ac);
+        b = hex3(th.ac2 === th.ac ? "#2563eb" : th.ac2);
+        paper = hex3(dark ? "#f1e9d8" : th.bg);
+      } else if (fx.look === "duotone" && dark) b = hex3(th.ac);
+      FILM.render(ctx.canvas, fx.look, Math.floor(t * 30), {
+        dark,
+        inkA: a,
+        inkB: b,
+        paper,
+      });
+      ctx.drawImage(FILM_CV, 0, 0, W, H);
+    } catch (e) {
+      FILM_FAIL = true; // no WebGL2 here: leave the picture as it is
+    }
+  }
+  const lookSupported = () =>
+    !!(window.FilmPost && window.FilmPost.supported());
+
   /* ---------- one frame ---------- */
   function draw(ctx, p, tt) {
     const t = clamp(tt, 0, p.duration - 0.001),
@@ -2264,7 +2448,12 @@
       tx = 0,
       ty = 0,
       crot = 0;
-    if (fx.camera === "handheld") {
+    if (fx.camera === "dutch") {
+      crot = 0.07 + Math.sin(t * 0.4) * 0.012;
+      tx = Math.sin(t * 0.5) * 8;
+      zoom = 1.14;
+    } else if (fx.camera === "breathe") zoom = 1.03 + 0.035 * Math.sin(t * 1.1);
+    else if (fx.camera === "handheld") {
       tx = (vnoise(t * 1.3) - 0.5) * 26;
       ty = (vnoise(t * 1.1 + 50) - 0.5) * 20;
       crot = (vnoise(t * 0.9 + 100) - 0.5) * 0.02;
@@ -2286,6 +2475,10 @@
       ty = (rnd(fnum + 99) - 0.5) * 7;
       zoom = 1.015;
     }
+    if (fx.scratch) {
+      tx += (vnoise(t * 8) - 0.5) * 4; // gate weave
+      ty += (vnoise(t * 7 + 30) - 0.5) * 4;
+    }
     /* transition (first moments of each scene) */
     const te = easeOutCubic(clamp(st / 0.45));
     let tzoom = 1,
@@ -2296,6 +2489,7 @@
       tzoom = 1 + 0.25 * (1 - te);
     } else if (fx.transition === "zoom") tzoom = 1 + 0.32 * (1 - te);
     else if (fx.transition === "slide") tdx = (1 - te) * W * 0.7;
+    else if (fx.transition === "whip") tdx = -(1 - te) * W * 0.8;
     else if (fx.transition === "glitch" && st < 0.3)
       tdx = (rnd(fnum * 3 + s.index) - 0.5) * 36;
 
@@ -2339,7 +2533,8 @@
       ln.items.forEach((it) => {
         const tw = st - s.at[it.i];
         if (tw < 0) return;
-        let sc = 1,
+        let sliceDx = 0,
+          sc = 1,
           sy = 1,
           blurPx = 0,
           ox = 0,
@@ -2378,6 +2573,33 @@
             sy = Math.max(0.02, e);
             break;
           }
+          case "scramble": {
+            const k = clamp(tw / 0.45),
+              GL = "#%&@$01<>/\\|{}[]*+=~";
+            str = [...it.w]
+              .map((ch, j) =>
+                tw > 0.45 || j / it.w.length < k
+                  ? ch
+                  : GL[Math.floor(rnd(fnum * 3 + j + it.i * 7) * GL.length)],
+              )
+              .join("");
+            a = 1;
+            break;
+          }
+          case "stamp": {
+            const e = easeOutCubic(clamp(tw / 0.16));
+            sc = 2.6 - 1.6 * e;
+            a = clamp(tw / 0.05);
+            if (tw < 0.22) {
+              ox = (rnd(fnum + it.i) - 0.5) * 14 * (1 - tw / 0.22);
+              oy = (rnd(fnum + it.i + 9) - 0.5) * 14 * (1 - tw / 0.22);
+            }
+            break;
+          }
+          case "slice":
+            sliceDx = (1 - easeOutCubic(clamp(tw / 0.35))) * 160;
+            a = clamp(tw / 0.08);
+            break;
           case "spring": {
             const e = spring(tw / 0.55);
             sc = 0.5 + 0.5 * e;
@@ -2444,7 +2666,24 @@
         }
         ctx.fillStyle =
           active > 0.5 ? pillTxt : emph || s.type === "outro" ? th.ac : th.fg;
-        ctx.fillText(str, it.x, it.y);
+        if (sliceDx > 0.5) {
+          const top = it.y - L.size * 1.2,
+            mid = it.y - L.size * 0.32,
+            x0 = it.x - 40 - sliceDx,
+            w0 = it.ww + 80 + 2 * sliceDx;
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(x0, top, w0, mid - top);
+          ctx.clip();
+          ctx.fillText(str, it.x - sliceDx, it.y);
+          ctx.restore();
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(x0, mid, w0, L.size);
+          ctx.clip();
+          ctx.fillText(str, it.x + sliceDx, it.y);
+          ctx.restore();
+        } else ctx.fillText(str, it.x, it.y);
         if ("filter" in ctx) ctx.filter = "none";
         ctx.restore();
       }),
@@ -2486,6 +2725,45 @@
         ctx.fillStyle = rgba(k % 2 ? th.ac2 : th.ac, 0.45);
         ctx.fillRect(0, r * H, W, 6 + rnd(k + fnum) * 30);
       }
+    if (fx.transition === "iris" && st < 0.55) {
+      const k = easeOutCubic(st / 0.55),
+        R = Math.max(1, (Math.hypot(W, H) / 2) * k);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, W, H);
+      ctx.arc(W / 2, H * 0.5, R, 0, 6.2832, true);
+      ctx.fillStyle = th.bg;
+      ctx.fill("evenodd");
+      ctx.restore();
+    }
+    if (fx.transition === "whip" && st < 0.4) {
+      const k = st / 0.4;
+      for (let i = 0; i < 12; i++) {
+        const y = rnd(i + s.index * 5) * H,
+          h = 36 + rnd(i + 3) * 130,
+          x = (-1 + k * 2.2) * W * (0.6 + rnd(i) * 0.8),
+          g = ctx.createLinearGradient(x - W * 0.8, 0, x, 0);
+        g.addColorStop(0, rgba(i % 2 ? th.ac2 : th.ac, 0));
+        g.addColorStop(1, rgba(i % 2 ? th.ac2 : th.ac, 0.5 * (1 - k)));
+        ctx.fillStyle = g;
+        ctx.fillRect(x - W * 0.8, y, W * 0.8, h);
+      }
+    }
+    if (fx.transition === "burn" && st < 0.45) {
+      const k = st / 0.45,
+        a = Math.pow(1 - k, 1.6),
+        bx = W * (0.3 + 0.4 * rnd(s.index + 1)),
+        by = H * (0.2 + 0.5 * rnd(s.index + 7)),
+        g = ctx.createRadialGradient(bx, by, 0, bx, by, H * (0.5 + k * 0.5));
+      g.addColorStop(0, `rgba(255,200,90,${0.9 * a})`);
+      g.addColorStop(0.5, `rgba(255,90,20,${0.5 * a})`);
+      g.addColorStop(1, "rgba(255,40,0,0)");
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
     if (fx.transition === "wipe" && st < 0.5) {
       const k = easeOutCubic(st / 0.5),
         x = -W * 0.4 + k * W * 1.8;
@@ -2542,6 +2820,51 @@
         ctx.fillRect(x - 120, -H, 240, H * 3);
         ctx.restore();
       }
+    }
+    if (fx.scratch) {
+      const f = Math.floor(t * 12),
+        g = Math.floor(t * 24);
+      ctx.save();
+      ctx.fillStyle =
+        rnd(f + 3) > 0.5
+          ? `rgba(255,255,255,${0.03 + rnd(f) * 0.05})`
+          : `rgba(0,0,0,${0.04 + rnd(f + 1) * 0.06})`;
+      ctx.fillRect(0, 0, W, H);
+      for (let k = 0; k < 3; k++) {
+        if (rnd(f * 3 + k) < 0.45) continue;
+        const x = rnd(f * 7 + k * 13) * W,
+          y0 = rnd(f + k) * H * 0.6,
+          len = H * (0.25 + rnd(f + k * 5) * 0.6);
+        ctx.strokeStyle = `rgba(255,255,255,${0.18 + rnd(f + k * 2) * 0.25})`;
+        ctx.lineWidth = 1 + rnd(f + k) * 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, y0);
+        ctx.lineTo(x + (rnd(f + k * 9) - 0.5) * 6, y0 + len);
+        ctx.stroke();
+      }
+      for (let i = 0; i < 22; i++) {
+        ctx.fillStyle = i % 3 ? "rgba(0,0,0,.45)" : "rgba(255,255,255,.55)";
+        ctx.beginPath();
+        ctx.arc(
+          rnd(g * 5 + i) * W,
+          rnd(g * 11 + i + 40) * H,
+          0.8 + rnd(g + i * 3) * 3,
+          0,
+          6.3,
+        );
+        ctx.fill();
+      }
+      if (rnd(f + 99) > 0.7) {
+        const hx = rnd(f + 5) * W,
+          hy = rnd(f + 6) * H;
+        ctx.strokeStyle = "rgba(0,0,0,.5)";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(hx, hy);
+        ctx.bezierCurveTo(hx + 20, hy - 10, hx + 30, hy + 25, hx + 55, hy + 8);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
     if (fx.scanlines) {
       ctx.fillStyle = "rgba(0,0,0,0.13)";
@@ -2631,6 +2954,11 @@
     if (t < 0.25) {
       ctx.fillStyle = `rgba(0,0,0,${1 - t / 0.25})`;
       ctx.fillRect(0, 0, W, H);
+    }
+    if (fx.look && fx.look !== "none") {
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+      lookPass(ctx, p, t, fx);
     }
     if (fx.crt || fx.vhs) {
       ctx.globalAlpha = 1;
@@ -2857,6 +3185,7 @@
     FX_OPTIONS,
     SWITCHES,
     crtSupported,
+    lookSupported,
     PRESETS,
     MOTIFS,
     plan,

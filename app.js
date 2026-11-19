@@ -1435,7 +1435,7 @@
               `<button type="button" class="chip btnchip" data-preset="${n}" ${dis}>${n}</button>`,
           )
           .join("")}</div></div>
-        ${seg("caption", "Captions")}${seg("transition", "Transitions")}${seg("camera", "Camera")}${seg("particles", "Particles")}
+        ${seg("look", "Film look")}${seg("caption", "Captions")}${seg("transition", "Transitions")}${seg("camera", "Camera")}${seg("particles", "Particles")}
         <div class="switches">${RV.SWITCHES.map(([k, l]) => sw(k, l)).join("")}</div>
       </section>
       <section class="panel director">

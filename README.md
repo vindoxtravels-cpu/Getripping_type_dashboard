@@ -135,7 +135,14 @@ Safety: only sites you allow can reach the helper; a site gets no token until yo
 
 ## Effects and credits
 
-Studio has 9 caption, 8 transition, 8 camera and 8 particle styles, 11 on/off screen effects and 8 presets. Two of the effects use MIT-licensed code from [Lemo-Opuscar](https://github.com/lemomo-ai/lemo-opuscar) by Lemomo (LemoLab): **CRT screen** and **VHS tape** (a WebGL2 post-process with scanlines, RGB grille, phosphor glow, chroma bleed, a power-on line and tape tracking noise, in `crt.js`), plus the **Spring** caption and **Handheld** camera (spring and smooth-noise helpers from its `core/lib.js`). If WebGL2 isn't available the CRT/VHS effect switches itself off. Only that project's code is used; its docs and style prompts are CC BY-NC and are not included. See `THIRD_PARTY.md`.
+Studio has a **Film look** row (1-bit dither, halftone, risograph, pixel mosaic, thermal camera, duotone, X-ray), 12 caption, 11 transition, 10 camera and 11 particle styles, 12 on/off screen effects and 14 one-click presets (Dreamy, Retro VHS, Epic, Silent Film, Zine, Terminal, Pop Print, 1-bit, Thermal and more).
+
+Motion styles worth knowing: **Stamp** (slams in with a shake), **Slice** (a word closes from two halves), **Scramble** (decodes from random glyphs), **Spring** (overshoots and settles), **Wave**, **Blur**, **Flip**; transitions **Iris**, **Whip**, **Burn**, **Wipe**, **Spin**, **Blinds**; cameras **Handheld**, **Dutch tilt**, **Breathe**, **Orbit**; particles **Matrix rain**, **Dust**, **Flow lines**, **Embers**, **Snow**, **Rain**, **Stars**.
+
+Where it comes from:
+
+- The **film looks** (`post.js`) and the new motions are my own implementations of techniques seen in the film styles of [Lemo-Opuscar](https://github.com/lemomo-ai/lemo-opuscar) by Lemomo (LemoLab); no code from it is used in them.
+- **CRT screen** and **VHS tape** (`crt.js`) and the **Spring** caption and **Handheld** camera helpers are adapted from that project's MIT-licensed code (`core/post/crt.js`, `core/lib.js`). If WebGL2 isn't available the CRT, VHS and film-look passes switch themselves off. Its docs and style prompts are CC BY-NC and are not included. See `THIRD_PARTY.md`.
 
 ## Video formats and templates
 
@@ -203,6 +210,7 @@ A rule-based score out of 100, not a trained model. It starts at 100 and loses p
 - `video.js`: the video engine (scene planner, animated renderer, effects, recorder, beat synthesizer)
 - `instagram.js`: Composio sign-in (OAuth with PKCE) and the Instagram client
 - `worker.js`, `wrangler.jsonc`, `.assetsignore`: the Cloudflare deployment and its Composio proxy
+- `post.js`: the film-look shader (dither, halftone, riso, pixel, thermal, duotone, X-ray)
 - `crt.js`, `THIRD_PARTY.md`: the CRT / VHS post-process adapted from Lemo-Opuscar (MIT) and its licence
 - `frames.js`: cuts a video into key frames in the browser (used when the helper isn't running)
 - `ai.js`: the Claude client (sign-in through the helper, or an API key)
