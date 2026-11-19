@@ -1,0 +1,16 @@
+# Not part of the website: kept out of the deployed assets
+worker.js
+wrangler.jsonc
+.assetsignore
+package.json
+package-lock.json
+README.md
+bridge
+tests
+reference
+node_modules
+.claude
+.git
+.gitignore
+.DS_Store
+Screenshot*

@@ -1,224 +1,402 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Reel Studio · Short-video workflow</title>
-<meta name="theme-color" content="#07070d">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css">
-</head>
-<body>
-<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Reel Studio · Short-video workflow</title>
+    <meta name="theme-color" content="#07070d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
 
-<div class="app">
-  <aside class="rail">
-    <div class="brand"><span class="logo" aria-hidden="true"></span><b>Reel Studio</b></div>
-    <nav class="nav" id="nav" aria-label="Workflow"><span class="glider" id="glider"></span></nav>
-    <div class="rail-foot">
-      <button class="igcard" id="igCard" type="button"></button>
-      <button class="igcard aicard" id="aiCard" type="button"></button>
-      <button class="rail-link" id="openSettings" type="button">Settings &amp; automation</button>
-    </div>
-  </aside>
-
-  <div class="main">
-    <header class="top">
-      <div class="top-text">
-        <div class="eyebrow" id="stageLabel"></div>
-        <h1 id="stageTitle"></h1>
-        <p id="stageSub"></p>
-      </div>
-      <button class="cta" id="nextBtn" type="button"></button>
-    </header>
-    <section id="view" class="view" aria-live="polite"></section>
-  </div>
-</div>
-
-<canvas id="confetti" aria-hidden="true"></canvas>
-
-<dialog id="settings">
-  <form method="dialog" class="dlg">
-    <h3>Settings &amp; automation</h3>
-    <label>Your niche <small class="muted">(used when Claude writes scripts)</small>
-      <input id="setNiche" type="text" placeholder="SaaS founders">
-    </label>
-    <label>Handle shown on videos
-      <input id="setHandle" type="text" placeholder="yourbrand">
-      <small class="muted" id="handleNote"></small>
-    </label>
-    <p class="muted">Optional: point Studio at your own video pipeline (n8n, Make, Zapier or an API). It will POST the script, style, effects and virality score as JSON. Leave it empty to render videos right here in your browser.</p>
-    <label>Webhook URL
-      <input id="setWebhook" type="url" placeholder="https://your-n8n.example.com/webhook/video">
-    </label>
-    <label>Auth header (optional)
-      <input id="setAuth" type="text" placeholder="Bearer sk-…" autocomplete="off">
-    </label>
-    <div class="row end">
-      <button type="button" class="linkbtn danger" id="resetAll" style="margin-right:auto">Reset all data</button>
-      <button value="cancel" class="btn ghost">Cancel</button>
-      <button value="save" class="btn primary">Save</button>
-    </div>
-  </form>
-</dialog>
-
-<dialog id="schedule">
-  <form method="dialog" class="dlg">
-    <h3>Schedule a post</h3>
-    <p class="muted" id="schTitle"></p>
-    <p class="warn" id="schWarn" hidden>This video hasn't been rendered yet. You can still reserve the slot.</p>
-    <div class="row">
-      <label style="flex:1">Date <input id="schDate" type="date" required></label>
-      <label style="flex:1">Time <input id="schTime" type="time" value="08:00"></label>
-    </div>
-    <label class="check"><input id="schFeed" type="checkbox" checked> Post to feed</label>
-    <label class="check"><input id="schTrial" type="checkbox"> Post as a trial reel (shown to non-followers first)</label>
-    <div class="row end">
-      <button value="cancel" class="btn ghost" formnovalidate>Cancel</button>
-      <button value="save" class="btn primary">Schedule</button>
-    </div>
-  </form>
-</dialog>
-
-<dialog id="igDialog">
-  <form method="dialog" class="dlg" id="igForm">
-    <h3>Instagram accounts</h3>
-    <p class="muted">Connect as many Business or Creator accounts as you manage. Studio reads their insights through Meta's official API. It only reads, never posts, and each token goes straight from this browser to Meta.</p>
-    <div id="igList" class="acctlist"></div>
-    <div class="lab">Add an account</div>
-    <label>Login type
-      <select id="igHost">
-        <option value="graph.instagram.com">Instagram Login (recommended)</option>
-        <option value="graph.facebook.com">Facebook Login</option>
-      </select>
-    </label>
-    <label>Access token
-      <input id="igToken" type="password" autocomplete="off" spellcheck="false" placeholder="Paste this account's access token">
-    </label>
-    <label>Instagram user ID <small class="muted">(only needed for Facebook Login)</small>
-      <input id="igId" type="text" inputmode="numeric" autocomplete="off" placeholder="17841400000000000">
-    </label>
-    <label class="check"><input id="igRemember" type="checkbox"> Remember this token on this device</label>
-    <p class="note" id="igMsg" role="status"></p>
-    <details class="how">
-      <summary>How do I get a token?</summary>
-      <ol>
-        <li>Open <b>developers.facebook.com</b>, create an app (type: Business) and add the <b>Instagram</b> product.</li>
-        <li>Under <b>API setup with Instagram login</b>, add the Instagram professional account and click <b>Generate token</b>. Repeat for each account.</li>
-        <li>Allow <code>instagram_business_basic</code> and <code>instagram_business_manage_insights</code>, then paste the token here.</li>
-      </ol>
-      <p>Tokens expire (about 60 days for long-lived ones). Anyone with a token can read that account's insights, so don't save it on a shared computer.</p>
-    </details>
-    <div class="row end">
-      <button value="cancel" class="btn ghost">Close</button>
-      <button type="button" class="btn primary" id="igTest">Test &amp; add account</button>
-    </div>
-  </form>
-</dialog>
-
-<dialog id="apiDialog">
-  <form method="dialog" class="dlg">
-    <h3>AI &amp; voice</h3>
-    <div class="apisec">
-      <div class="apihead"><b>Claude</b><div class="seg" id="aiTabs"><button type="button" data-mode="signin">Sign in</button><button type="button" data-mode="key">API key</button></div></div>
-      <p class="muted small">Powers script import, scene direction and “make one like this”.</p>
-      <div id="aiSignin" class="apibox"></div>
-      <div id="aiKeyBox" class="apibox" hidden>
-        <label>Claude API key
-          <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
-        </label>
-        <label>Model
-          <select id="apiModel"></select>
-        </label>
-        <label class="check"><input id="apiRemember" type="checkbox"> Remember this key on this device</label>
-        <div class="row end">
-          <button type="button" class="linkbtn danger" id="apiRemove" style="margin-right:auto" hidden>Remove key</button>
-          <button type="button" class="btn primary" id="apiTest">Test &amp; save</button>
+    <div class="app">
+      <aside class="rail">
+        <div class="brand">
+          <span class="logo" aria-hidden="true"></span><b>Reel Studio</b>
         </div>
-      </div>
-      <p class="note" id="apiMsg" role="status"></p>
-    </div>
-    <div class="apisec">
-      <div class="apihead"><b>Voice</b></div>
-      <div class="vrow"><span>Edge voices <small class="muted">free · neural · through the helper</small></span><span id="edgeState" class="chip"></span></div>
-      <div class="vrow"><span>ElevenLabs <small class="muted">your API key</small></span><span id="elState" class="chip"></span></div>
-      <div id="elBox" class="apibox">
-        <label>ElevenLabs API key
-          <input id="elKey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your ElevenLabs key">
-        </label>
-        <label class="check"><input id="elRemember" type="checkbox"> Remember this key on this device</label>
-        <div class="row end">
-          <button type="button" class="linkbtn danger" id="elRemove" style="margin-right:auto" hidden>Remove key</button>
-          <button type="button" class="btn" id="elTest">Test &amp; save</button>
+        <nav class="nav" id="nav" aria-label="Workflow">
+          <span class="glider" id="glider"></span>
+        </nav>
+        <div class="rail-foot">
+          <button class="igcard" id="igCard" type="button"></button>
+          <button class="igcard aicard" id="aiCard" type="button"></button>
+          <button class="rail-link" id="openSettings" type="button">
+            Settings &amp; automation
+          </button>
         </div>
+      </aside>
+
+      <div class="main">
+        <header class="top">
+          <div class="top-text">
+            <div class="eyebrow" id="stageLabel"></div>
+            <h1 id="stageTitle"></h1>
+            <p id="stageSub"></p>
+          </div>
+          <button class="cta" id="nextBtn" type="button"></button>
+        </header>
+        <section id="view" class="view" aria-live="polite"></section>
       </div>
-      <p class="note" id="elMsg" role="status"></p>
     </div>
-    <details class="how">
-      <summary>How do these work, and what does it cost?</summary>
-      <p><b>Sign in</b> uses your own Claude Code on this computer, signed in to your Claude account, so usage comes from your Claude plan and no API key is needed. It needs the helper (<code>./bridge/start.sh</code>) and is meant for your own personal use on your own machine. For anything shared, hosted or commercial use an API key instead: Anthropic provides account sign-in for Claude Code itself, not for other apps.</p>
-      <p><b>API key:</b> create one at console.anthropic.com and add a little credit. Each request costs a small fraction of a cent to a few cents. Set a spend limit on the key.</p>
-      <p><b>Edge voices</b> are Microsoft's read-aloud voices. They are free but unofficial: Microsoft does not publish a public API for them, so they could change or stop working.</p>
-      <p><b>ElevenLabs:</b> get a key in your ElevenLabs profile. Voice-overs use your plan's credits (about one credit per character).</p>
-      <p>Keys stay in this browser (this session only unless you tick Remember) and go straight to the service. Don't remember them on a shared computer.</p>
-    </details>
-    <div class="row end">
-      <button value="cancel" class="btn ghost">Close</button>
-    </div>
-  </form>
-</dialog>
 
-<dialog id="importDialog">
-  <form method="dialog" class="dlg">
-    <h3>Import a reel as a script</h3>
-    <div class="refcard" id="impRef"></div>
-    <p class="note" id="impStatus" role="status"></p>
-    <label class="dropzone" id="impDrop">
-      <input type="file" id="impFile" accept="video/*" hidden>
-      <span class="dzicon" aria-hidden="true">⬆</span>
-      <span id="impDropText"></span>
-    </label>
-    <ul class="prog" id="impProg" hidden></ul>
-    <div class="frames" id="impFrames"></div>
-    <label>Caption, or what the reel says <small class="muted">(optional if you drop the video)</small>
-      <textarea id="impText" rows="5" placeholder="Paste the caption or a transcript. The first sentence becomes the hook and the rest flows into lines."></textarea>
-    </label>
-    <label class="check"><input id="impRewrite" type="checkbox"> Rewrite it in my own words with Claude</label>
-    <p class="muted small" id="impHint"></p>
-    <div class="row end">
-      <button value="cancel" class="btn ghost">Cancel</button>
-      <button type="button" class="btn primary" id="impGo">Create script</button>
-    </div>
-  </form>
-</dialog>
+    <canvas id="confetti" aria-hidden="true"></canvas>
 
-<dialog id="genDialog">
-  <form method="dialog" class="dlg">
-    <h3>Make one like this</h3>
-    <div class="refcard" id="genRef"></div>
-    <div class="chips" id="genWhy"></div>
-    <label>New topic <small class="muted">(optional)</small>
-      <input id="genTopic" type="text" placeholder="e.g. onboarding emails. Leave empty for a similar topic" autocomplete="off">
-    </label>
-    <p class="note" id="genMsg" role="status"></p>
-    <div class="row end">
-      <button value="cancel" class="btn ghost">Cancel</button>
-      <button type="button" class="btn" id="genCopy">Copy its structure</button>
-      <button type="button" class="btn primary" id="genGo"></button>
-    </div>
-  </form>
-</dialog>
+    <dialog id="settings">
+      <form method="dialog" class="dlg">
+        <h3>Settings &amp; automation</h3>
+        <label
+          >Your niche
+          <small class="muted">(used when Claude writes scripts)</small>
+          <input id="setNiche" type="text" placeholder="SaaS founders" />
+        </label>
+        <label
+          >Handle shown on videos
+          <input id="setHandle" type="text" placeholder="yourbrand" />
+          <small class="muted" id="handleNote"></small>
+        </label>
+        <p class="muted">
+          Optional: point Studio at your own video pipeline (n8n, Make, Zapier
+          or an API). It will POST the script, style, effects and virality score
+          as JSON. Leave it empty to render videos right here in your browser.
+        </p>
+        <label
+          >Webhook URL
+          <input
+            id="setWebhook"
+            type="url"
+            placeholder="https://your-n8n.example.com/webhook/video"
+          />
+        </label>
+        <label
+          >Auth header (optional)
+          <input
+            id="setAuth"
+            type="text"
+            placeholder="Bearer sk-…"
+            autocomplete="off"
+          />
+        </label>
+        <div class="row end">
+          <button
+            type="button"
+            class="linkbtn danger"
+            id="resetAll"
+            style="margin-right: auto"
+          >
+            Reset all data
+          </button>
+          <button value="cancel" class="btn ghost">Cancel</button>
+          <button value="save" class="btn primary">Save</button>
+        </div>
+      </form>
+    </dialog>
 
-<script src="helper.js"></script>
-<script src="tools.js"></script>
-<script src="ai.js"></script>
-<script src="voice.js"></script>
-<script src="video.js"></script>
-<script src="instagram.js"></script>
-<script src="app.js"></script>
-</body>
+    <dialog id="schedule">
+      <form method="dialog" class="dlg">
+        <h3>Schedule a post</h3>
+        <p class="muted" id="schTitle"></p>
+        <p class="warn" id="schWarn" hidden>
+          This video hasn't been rendered yet. You can still reserve the slot.
+        </p>
+        <div class="row">
+          <label style="flex: 1"
+            >Date <input id="schDate" type="date" required
+          /></label>
+          <label style="flex: 1"
+            >Time <input id="schTime" type="time" value="08:00"
+          /></label>
+        </div>
+        <label class="check"
+          ><input id="schFeed" type="checkbox" checked /> Post to feed</label
+        >
+        <label class="check"
+          ><input id="schTrial" type="checkbox" /> Post as a trial reel (shown
+          to non-followers first)</label
+        >
+        <div class="row end">
+          <button value="cancel" class="btn ghost" formnovalidate>
+            Cancel
+          </button>
+          <button value="save" class="btn primary">Schedule</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="igDialog">
+      <form method="dialog" class="dlg" id="igForm">
+        <h3>Instagram accounts</h3>
+        <p class="muted">
+          Connect your Business or Creator accounts through Composio. Studio
+          only reads insights and never posts, and it never sees an Instagram
+          password or token.
+        </p>
+        <div id="igStatus"></div>
+        <div id="igList" class="acctlist"></div>
+        <div id="igPass" class="row" hidden>
+          <label style="flex: 1"
+            >Passcode
+            <input
+              id="igPassIn"
+              type="password"
+              autocomplete="off"
+              placeholder="The passcode set on this site"
+          /></label>
+          <button type="button" class="btn" id="igPassGo">Unlock</button>
+        </div>
+        <p class="note" id="igMsg" role="status"></p>
+        <details class="how">
+          <summary>How does this work?</summary>
+          <ol>
+            <li>
+              Add your Composio API key to the server:
+              <code>npx wrangler secret put COMPOSIO_API_KEY</code> on the
+              deployed site, or
+              <code>COMPOSIO_API_KEY=… ./bridge/start.sh</code>
+              on your computer.
+            </li>
+            <li>
+              Press <b>Connect an Instagram account</b>. Composio opens
+              Instagram's own sign-in. Repeat to add more accounts.
+            </li>
+            <li>
+              Come back and press <b>Check again</b>. Accounts you already
+              connected in Composio show up automatically.
+            </li>
+          </ol>
+          <p>
+            Set an <code>APP_PASSCODE</code> secret on the deployed site so only
+            you can read the insights. To disconnect an account, remove it in
+            the Composio dashboard.
+          </p>
+        </details>
+        <div class="row end">
+          <button value="cancel" class="btn ghost">Close</button>
+          <button type="button" class="btn" id="igCheck">Check again</button>
+          <button type="button" class="btn primary" id="igLink">
+            Connect an Instagram account
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="apiDialog">
+      <form method="dialog" class="dlg">
+        <h3>AI &amp; voice</h3>
+        <div class="apisec">
+          <div class="apihead">
+            <b>Claude</b>
+            <div class="seg" id="aiTabs">
+              <button type="button" data-mode="signin">Sign in</button
+              ><button type="button" data-mode="key">API key</button>
+            </div>
+          </div>
+          <p class="muted small">
+            Powers script import, scene direction and “make one like this”.
+          </p>
+          <div id="aiSignin" class="apibox"></div>
+          <div id="aiKeyBox" class="apibox" hidden>
+            <div id="aiHostNote" hidden></div>
+            <label
+              >Claude API key
+              <input
+                id="apiKey"
+                type="password"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="sk-ant-…"
+              />
+            </label>
+            <label
+              >Model
+              <select id="apiModel"></select>
+            </label>
+            <label class="check"
+              ><input id="apiRemember" type="checkbox" /> Remember this key on
+              this device</label
+            >
+            <div class="row end">
+              <button
+                type="button"
+                class="linkbtn danger"
+                id="apiRemove"
+                style="margin-right: auto"
+                hidden
+              >
+                Remove key
+              </button>
+              <button type="button" class="btn primary" id="apiTest">
+                Test &amp; save
+              </button>
+            </div>
+          </div>
+          <p class="note" id="apiMsg" role="status"></p>
+        </div>
+        <div class="apisec">
+          <div class="apihead"><b>Voice</b></div>
+          <div class="vrow">
+            <span
+              >Edge voices
+              <small class="muted"
+                >free · neural · through the helper</small
+              ></span
+            ><span id="edgeState" class="chip"></span>
+          </div>
+          <div class="vrow">
+            <span>ElevenLabs <small class="muted">your API key</small></span
+            ><span id="elState" class="chip"></span>
+          </div>
+          <div id="elBox" class="apibox">
+            <label
+              >ElevenLabs API key
+              <input
+                id="elKey"
+                type="password"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="Paste your ElevenLabs key"
+              />
+            </label>
+            <label class="check"
+              ><input id="elRemember" type="checkbox" /> Remember this key on
+              this device</label
+            >
+            <div class="row end">
+              <button
+                type="button"
+                class="linkbtn danger"
+                id="elRemove"
+                style="margin-right: auto"
+                hidden
+              >
+                Remove key
+              </button>
+              <button type="button" class="btn" id="elTest">
+                Test &amp; save
+              </button>
+            </div>
+          </div>
+          <p class="note" id="elMsg" role="status"></p>
+        </div>
+        <details class="how">
+          <summary>How do these work, and what does it cost?</summary>
+          <p>
+            <b>Sign in</b> uses your own Claude Code on this computer, signed in
+            to your Claude account, so usage comes from your Claude plan and no
+            API key is needed. It needs the helper
+            (<code>./bridge/start.sh</code>) and is meant for your own personal
+            use on your own machine. For anything shared, hosted or commercial
+            use an API key instead: Anthropic provides account sign-in for
+            Claude Code itself, not for other apps.
+          </p>
+          <p>
+            <b>API key:</b> create one at console.anthropic.com and add a little
+            credit. Each request costs a small fraction of a cent to a few
+            cents. Set a spend limit on the key.
+          </p>
+          <p>
+            <b>Edge voices</b> are Microsoft's read-aloud voices. They are free
+            but unofficial: Microsoft does not publish a public API for them, so
+            they could change or stop working.
+          </p>
+          <p>
+            <b>ElevenLabs:</b> get a key in your ElevenLabs profile. Voice-overs
+            use your plan's credits (about one credit per character).
+          </p>
+          <p>
+            Keys stay in this browser (this session only unless you tick
+            Remember) and go straight to the service. Don't remember them on a
+            shared computer.
+          </p>
+        </details>
+        <div class="row end">
+          <button value="cancel" class="btn ghost">Close</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="importDialog">
+      <form method="dialog" class="dlg">
+        <h3>Import a reel as a script</h3>
+        <div class="refcard" id="impRef"></div>
+        <div class="fmtrow">
+          <span class="lab">What kind of video?</span>
+          <div id="impFmtHost"></div>
+        </div>
+        <p class="note" id="impStatus" role="status"></p>
+        <label class="dropzone" id="impDrop">
+          <input type="file" id="impFile" accept="video/*" hidden />
+          <span class="dzicon" aria-hidden="true">⬆</span>
+          <span id="impDropText"></span>
+        </label>
+        <ul class="prog" id="impProg" hidden></ul>
+        <div class="frames" id="impFrames"></div>
+        <label
+          >Caption, or what the reel says
+          <small class="muted">(optional if you drop the video)</small>
+          <textarea
+            id="impText"
+            rows="5"
+            placeholder="Paste the caption or a transcript. The first sentence becomes the hook and the rest flows into lines."
+          ></textarea>
+        </label>
+        <label class="check"
+          ><input id="impRewrite" type="checkbox" /> Rewrite it in my own words
+          with Claude</label
+        >
+        <p class="muted small" id="impHint"></p>
+        <div class="row end">
+          <button value="cancel" class="btn ghost">Cancel</button>
+          <button type="button" class="btn primary" id="impGo">
+            Create script
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="genDialog">
+      <form method="dialog" class="dlg">
+        <h3>Make one like this</h3>
+        <div class="refcard" id="genRef"></div>
+        <div class="chips" id="genWhy"></div>
+        <label
+          >New topic <small class="muted">(optional)</small>
+          <input
+            id="genTopic"
+            type="text"
+            placeholder="e.g. onboarding emails. Leave empty for a similar topic"
+            autocomplete="off"
+          />
+        </label>
+        <p class="note" id="genMsg" role="status"></p>
+        <div class="row end">
+          <button value="cancel" class="btn ghost">Cancel</button>
+          <button type="button" class="btn" id="genCopy">
+            Copy its structure
+          </button>
+          <button type="button" class="btn primary" id="genGo"></button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="helper.js"></script>
+    <script src="tools.js"></script>
+    <script src="frames.js"></script>
+    <script src="ai.js"></script>
+    <script src="voice.js"></script>
+    <script src="video.js"></script>
+    <script src="instagram.js"></script>
+    <script src="app.js"></script>
+  </body>
 </html>

@@ -4,3 +4,6 @@ node_modules
 # local helper environment
 bridge/.venv/
 bridge/__pycache__/
+
+# local secrets
+bridge/.env

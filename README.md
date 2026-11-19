@@ -11,18 +11,18 @@ No build step. Start the **helper**, which serves the app and switches on Sign i
 
 then open **http://localhost:5174**. The first run installs the small `edge-tts` voice package if it is missing. (Python 3 is the only requirement.) You can still serve the folder with `python3 -m http.server 5174`, but Claude sign-in and Edge voices then stay off.
 
-Everything you create is stored in the browser (`localStorage`). On a phone, use *Add to Home Screen* to run it like an app.
+Everything you create is stored in the browser (`localStorage`). On a phone, use _Add to Home Screen_ to run it like an app.
 
 ## The six steps
 
-| Step | What you do |
-|---|---|
-| **Discover** | Paste a reel link to turn it into a script, or drag reels right to save and left to skip. See why a reel works and draft a script from it. |
-| **Scripts** | A library of scripts. Paste a whole caption into the hook line (or the line below it) and it splits across the lines. A timeline, checks and a virality score update as you type. |
-| **Studio** | Pick one of 25 styles, a pace and a set of effects, let Claude direct the scenes, and **render a real video**. |
-| **Calendar** | Week view. Schedule a video, mark it posted, then link it to its live reel so Studio learns from the result. |
-| **Insights** | Live numbers from one or many Instagram accounts, compared with the previous period, plus carousels and what your best hooks have in common. |
-| **Remix** | The best posted video becomes a carousel (PNG export, 1080×1350) and a batch of new hooks. |
+| Step         | What you do                                                                                                                                                                       |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Discover** | Paste a reel link to turn it into a script, or drag reels right to save and left to skip. See why a reel works and draft a script from it.                                        |
+| **Scripts**  | A library of scripts. Paste a whole caption into the hook line (or the line below it) and it splits across the lines. A timeline, checks and a virality score update as you type. |
+| **Studio**   | Pick one of 25 styles, a pace and a set of effects, let Claude direct the scenes, and **render a real video**.                                                                    |
+| **Calendar** | Week view. Schedule a video, mark it posted, then link it to its live reel so Studio learns from the result.                                                                      |
+| **Insights** | Live numbers from one or many Instagram accounts, compared with the previous period, plus carousels and what your best hooks have in common.                                      |
+| **Remix**    | The best posted video becomes a carousel (PNG export, 1080×1350) and a batch of new hooks.                                                                                        |
 
 ## Import a script from a reel (Claude watches it)
 
@@ -33,7 +33,7 @@ Paste an Instagram reel link in **Discover** (or into any script line), or open 
 3. **Listens**, if you installed speech-to-text: the helper transcribes the audio on your computer (`./bridge/start.sh --speech`, one time, about 190 MB plus a 145 MB speech model).
 4. **Claude looks at every frame** together with the speech and caption, copies the on-screen text, describes each frame, writes the script (hook, lines, comment call-to-action) and picks a matching style.
 
-The result is a new script with a collapsible **Reel breakdown**: each frame's time, what it shows, and its on-screen text. Tick *Rewrite in my own words* for a new script with original wording (the default), or untick it to reconstruct what the video actually says. I tested this on a 14-second reel rendered by Studio itself: faithful mode reproduced all four lines exactly and picked the style it had been made in.
+The result is a new script with a collapsible **Reel breakdown**: each frame's time, what it shows, and its on-screen text. Tick _Rewrite in my own words_ for a new script with original wording (the default), or untick it to reconstruct what the video actually says. I tested this on a 14-second reel rendered by Studio itself: faithful mode reproduced all four lines exactly and picked the style it had been made in.
 
 **Other people's reels.** Instagram does not let apps download other people's reels, and Studio does not scrape them. For those you can **drop the video file** into the importer yourself (a video you own, one you have permission to use, or a screen recording) and the same frame-by-frame analysis runs. Without a video, paste the caption or what they say and it is split into a hook, lines and a call-to-action (or rewritten by Claude).
 
@@ -47,16 +47,16 @@ Studio draws every frame itself and records it with the browser's `MediaRecorder
 
 - **25 styles**, each with its own animated background.
 - **Effects**, all optional, with four one-click presets (Clean, Hype, Cinematic, Glitch):
-  - *Captions:* pop, typewriter, slide, bounce, glitch
-  - *Transitions:* ring, zoom, slide, flash, glitch
-  - *Camera:* push-in, drift, shake, still
-  - *Particles:* sparkles, confetti, bokeh
-  - *Toggles:* scene icons, glow, color fringe, film grain
+  - _Captions:_ pop, typewriter, slide, bounce, glitch
+  - _Transitions:_ ring, zoom, slide, flash, glitch
+  - _Camera:_ push-in, drift, shake, still
+  - _Particles:_ sparkles, confetti, bokeh
+  - _Toggles:_ scene icons, glow, color fringe, film grain
 - **Scene icons:** animated chart, coin, flame, bolt, target, clock, heart and check icons chosen from the words in each line (or by Claude).
 - Output is **720×1280 (9:16) at 30 fps**: MP4 in Chrome, Edge and Safari, WebM where MP4 recording isn't available. Convert WebM for Instagram with
   `ffmpeg -i video.webm -c:v libx264 -pix_fmt yuv420p -c:a aac out.mp4`.
 - **Rendering runs in real time.** A 30-second reel takes about 30 seconds and the tab must stay open.
-- **Audio:** a synthesized beat (optional) and a voice-over from any of three sources (see *Voice-over* below).
+- **Audio:** a synthesized beat (optional) and a voice-over from any of three sources (see _Voice-over_ below).
 - Rendered videos live in the tab. Download the file to keep it.
 
 ## Connect Claude (optional, unlocks the AI tools)
@@ -69,6 +69,7 @@ Click **Connect Claude** in the sidebar. There are two ways:
 **Why not a "Sign in with Claude" button in the web page itself?** Anthropic provides account sign-in for Claude Code and its own apps, and asks other apps to use API keys. So the page never touches your sign-in token: the real Claude Code does the signing in, on your machine. For anything shared, hosted or commercial, use an API key.
 
 With Claude connected, Studio can:
+
 - **Import a reel** as a script written in your own words.
 - **Direct the video:** per-scene icons and highlighted words, plus the style, pace and effects.
 - **Make one like this:** study a high-performing reel and write a new script on your topic with the same structure and original wording.
@@ -78,7 +79,7 @@ With Claude connected, Studio can:
 Studio's **Voice-over** panel has three sources. Edge and ElevenLabs speak **each script line separately**, so every scene is exactly as long as its line and the captions stay in sync. I checked this in the recorded file: speech starts at each scene's start and is silent at its end.
 
 - **Edge voice (free).** Microsoft's neural read-aloud voices (318 voices, 140+ languages and regions) through the helper, using the open-source `edge-tts` package. Pick a voice and speed. These voices are **unofficial**: Microsoft publishes no public API for them, so they could change or stop working, and quality and limits are not guaranteed.
-- **ElevenLabs.** Add your ElevenLabs API key (Connect Claude dialog, *Voice* section), pick one of your account's voices and a model, and generate. It uses your plan's credits (about one per character). The key stays in this browser.
+- **ElevenLabs.** Add your ElevenLabs API key (Connect Claude dialog, _Voice_ section), pick one of your account's voices and a model, and generate. It uses your plan's credits (about one per character). The key stays in this browser.
 - **Upload.** Your own recording (MP3, WAV or M4A); the scenes are scaled to its length.
 
 Every generated voice-over has a player and a WAV download.
@@ -87,22 +88,50 @@ Every generated voice-over has a player and a WAV download.
 
 `./bridge/start.sh` runs `bridge/server.py`, a small program that stays on your computer. It serves the app and adds Claude through your Claude Code (text and images), Edge speech, reel video analysis (frames and speech-to-text) and a status check for each. Optional packages are installed into `bridge/.venv`, never your system Python. It is locked down: it listens on `127.0.0.1` only; it refuses requests whose Host or Origin isn't this app; it needs a random token that changes every time it starts; and it serves only the app's own files (not `bridge/`, `tests/`, `.git` or dotfiles). `python3 tests/helper_check.py` checks all of this with a stand-in for Claude Code, without touching your real account.
 
-## Instagram: one or many accounts
+## Instagram: one or many accounts (through Composio)
 
-Insights reads your own accounts through Meta's official **Instagram API**. It is read-only: the page never posts or changes anything.
+Insights reads your own accounts through [Composio](https://composio.dev). It is read-only: Studio only runs four Instagram _read_ tools (profile, media, account insights, media insights), never posts, and never sees an Instagram password or token. Composio holds the connection; a small proxy keeps your Composio API key on the server.
 
 1. Each account must be a **Business or Creator** account.
-2. At [developers.facebook.com](https://developers.facebook.com) create an app (type *Business*) and add the **Instagram** product.
-3. Under *API setup with Instagram login*, add the account and click **Generate token**. Allow `instagram_business_basic` and `instagram_business_manage_insights`. Repeat for each account.
-4. Click **Connect Instagram** and paste each token. (Facebook Login also works; it needs the Instagram user ID.)
+2. Give the server your Composio API key.
+   - **Deployed (Cloudflare):** `npx wrangler secret put COMPOSIO_API_KEY`. Also set `APP_PASSCODE` (`npx wrangler secret put APP_PASSCODE`); without it anyone with the site's link can read your insights.
+   - **On your computer:** put `COMPOSIO_API_KEY=ck_...` in `bridge/.env` (git-ignored) or run `COMPOSIO_API_KEY=... ./bridge/start.sh`.
+3. In your Composio project add an **Instagram** auth config (Composio managed is fine).
+4. Click **Connect Instagram → Connect an Instagram account**. Composio opens Instagram's own sign-in. Repeat for more accounts. Accounts already connected in Composio show up automatically; press **Check again**.
 
-What you get, per account or for **All accounts** together: views, accounts reached, new followers and interactions **compared with the previous period**, follower growth (and the change since you connected, from snapshots saved each time you refresh), the follower / non-follower split, a posting streak, top reels with thumbnails, **carousel** reach, saves and shares, and per-reel likes, comments, shares, saves, reach and average watch time.
+What you get, per account or for **All accounts** together: views, accounts reached, new followers and interactions **compared with the previous period**, follower growth (and the change since you connected, from snapshots saved each time you refresh), the follower / non-follower split, a posting streak, top reels with thumbnails, **carousel** reach, saves and shares, and per-reel likes, comments, shares, saves and reach.
 
-- Tokens stay in this browser, one per account, in `sessionStorage` or `localStorage` (if you tick *Remember*). **Remove** deletes it. Anyone with a token can read that account's insights.
-- Meta limits these windows to **30 days**, so the ranges are 7, 14 and 30 days.
-- Some metrics aren't available under 100 followers. Anything Meta refuses is listed as *metrics unavailable*.
-- Tokens expire (about 60 days for long-lived ones). The page says so and offers to reconnect.
-- Posting to Instagram from here is not included: Meta's publishing API needs a public video URL and app review.
+- Instagram limits these windows to **30 days**, so the ranges are 7, 14 and 30 days.
+- Some metrics aren't available under 100 followers. Anything Instagram refuses is listed as _metrics unavailable_.
+- To disconnect an account, remove it in the Composio dashboard.
+- Posting to Instagram from here is not included.
+
+## Deploying to Cloudflare
+
+`wrangler.jsonc` serves the app as static assets and runs `worker.js` for `/api/*` (the Composio proxy). `.assetsignore` keeps `bridge/`, `tests/`, `reference/` and the worker itself out of the public files.
+
+```bash
+npx wrangler deploy
+npx wrangler secret put COMPOSIO_API_KEY
+npx wrangler secret put APP_PASSCODE
+```
+
+What works on the deployed site, and what needs your computer:
+
+| Feature                             | Deployed                                                                                            | Local helper                    |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------- |
+| Render videos (MP4/WebM, 9:16)      | Yes, in your browser                                                                                | Yes                             |
+| Templates, formats, effects         | Yes                                                                                                 | Yes                             |
+| Claude (scripts, direction, vision) | **API key** (Sign in with Claude can't work on a website: it runs Claude Code on your own computer) | Sign in with Claude, or API key |
+| Watch a reel video                  | Yes: frames cut in the browser (no speech-to-text)                                                  | ffmpeg frames + speech-to-text  |
+| Voice-over                          | ElevenLabs key                                                                                      | Edge voices or ElevenLabs       |
+| Instagram insights                  | Yes, through the Worker                                                                             | Yes, through the helper         |
+
+## Video formats and templates
+
+Pick **What kind of video?** (Faceless, Comic & cartoon, Explainer, Cinematic, News & editorial, Collage & craft, Retro & neon) in Discover, the importer or Studio. It narrows the template list, and Claude only chooses a template from that format.
+
+Templates live in `THEMES` in `video.js`. Add one with a single line, for example `T("Name", background, text, accent, second accent, "orbs", { look: "hud", face: ["700", MONO] })`. A template with a `look` gets its own decoration (frames, tickers, stamps, tape and so on); add a `case` for it in `drawLook()`. List it under one or more formats in `FORMATS`. Included looks: Minimal, Luxury, Brutalist, Collage, Watercolour, Newsroom, Sci-fi HUD and Vaporwave.
 
 ## Learning from results
 
@@ -115,19 +144,40 @@ Studio learns which creative choices earn more, in a simple loop:
 
 Separately, **Insights → What's working in your hooks** compares your reels' first lines (a number, a question, "you", short, money, a problem) and shows how much more engagement each trait earned.
 
-This is a bandit-style learning loop over a few choices, not a model that edits videos. It needs several linked posts before its suggestions mean much, and engagement depends on much more than style. *Reset* clears it.
+This is a bandit-style learning loop over a few choices, not a model that edits videos. It needs several linked posts before its suggestions mean much, and engagement depends on much more than style. _Reset_ clears it.
 
 ## Hand rendering to your own pipeline (optional)
 
-Settings → paste an n8n / Make / Zapier / custom API URL. *Render video* then POSTs:
+Settings → paste an n8n / Make / Zapier / custom API URL. _Render video_ then POSTs:
 
 ```json
-{ "handle": "yourbrand", "title": "...", "duration": "0:27",
-  "script": [{"type":"hook|body|comment","text":"..."}], "text": "full script", "wordCount": 70, "format": "9:16",
-  "style": { "theme": "Neon", "pace": "Balanced",
-             "effects": { "caption": "bounce", "transition": "flash", "camera": "shake", "particles": "confetti", "glow": true, "grain": false, "chroma": true, "motifs": true },
-             "colors": { "bg": "#07000f", "fg": "#ffffff", "accent": "#ff2bd6" } },
-  "scenes": [{ "motif": "chart", "emphasis": ["numbers"] }], "virality": 86, "createdAt": "ISO" }
+{
+  "handle": "yourbrand",
+  "title": "...",
+  "duration": "0:27",
+  "script": [{ "type": "hook|body|comment", "text": "..." }],
+  "text": "full script",
+  "wordCount": 70,
+  "format": "9:16",
+  "style": {
+    "theme": "Neon",
+    "pace": "Balanced",
+    "effects": {
+      "caption": "bounce",
+      "transition": "flash",
+      "camera": "shake",
+      "particles": "confetti",
+      "glow": true,
+      "grain": false,
+      "chroma": true,
+      "motifs": true
+    },
+    "colors": { "bg": "#07000f", "fg": "#ffffff", "accent": "#ff2bd6" }
+  },
+  "scenes": [{ "motif": "chart", "emphasis": ["numbers"] }],
+  "virality": 86,
+  "createdAt": "ISO"
+}
 ```
 
 Your endpoint may answer with `{ "videoUrl": "https://..." }` (done), `{ "statusUrl": "https://..." }` (polled every 2 s for `{ "status", "progress": 0-100, "videoUrl" }`), or fail, in which case Studio renders in the browser. The endpoint must allow CORS from the page's origin.
@@ -141,13 +191,16 @@ A rule-based score out of 100, not a trained model. It starts at 100 and loses p
 - `index.html`, `styles.css`: the interface
 - `app.js`: the six screens, dialogs and app logic
 - `video.js`: the video engine (scene planner, animated renderer, effects, recorder, beat synthesizer)
-- `instagram.js`: the Instagram client (multiple accounts)
+- `instagram.js`: the Instagram client (multiple accounts, through Composio)
+- `worker.js`, `wrangler.jsonc`, `.assetsignore`: the Cloudflare deployment and its Composio proxy
+- `frames.js`: cuts a video into key frames in the browser (used when the helper isn't running)
 - `ai.js`: the Claude client (sign-in through the helper, or an API key)
 - `voice.js`: voice-over generation (Edge, ElevenLabs), joining, WAV export
 - `helper.js`: how the page talks to the helper
 - `bridge/server.py`, `bridge/start.sh`: the helper
 - `tools.js`: pure logic with no page code: link parsing, script splitting, paste handling, hook analysis and the learning loop
 - `tests/tools.test.js`: unit tests for `tools.js`. Run `node tests/tools.test.js`
-- `tests/helper_check.py`: checks the helper's security and sign-in plumbing. Run `python3 tests/helper_check.py`
+- `tests/helper_check.py`: checks the helper's security, sign-in plumbing and Composio proxy. Run `python3 tests/helper_check.py`
+- `tests/worker.test.mjs`: checks the Worker's proxy (passcode, allowed tools, origin checks). Run `node tests/worker.test.mjs`
 
 Research on the reference landing page is on the [`rea-output` branch](../../tree/rea-output/2026-11-18-getripping-landing).
