@@ -38,7 +38,12 @@
     remembered: false,
     ready: false,
     claude: null,
+    orKey: "",
+    orModel: "",
   };
+  const OR_KEY = "rs_or_key",
+    OR_PENDING = "rs_or_pending",
+    OR_BASE = "https://openrouter.ai";
 
   class AIError extends Error {
     constructor(m, info) {
@@ -54,6 +59,12 @@
       if (p.mode) state.mode = p.mode;
       if (p.model) state.model = p.model;
       if (p.alias) state.alias = p.alias;
+      if (p.orModel) state.orModel = p.orModel;
+    } catch (e) {
+      /* storage blocked */
+    }
+    try {
+      state.orKey = localStorage.getItem(OR_KEY) || "";
     } catch (e) {
       /* storage blocked */
     }
@@ -78,6 +89,7 @@
           mode: state.mode,
           model: state.model,
           alias: state.alias,
+          orModel: state.orModel,
         }),
       );
       sessionStorage.removeItem(KEY);
@@ -149,18 +161,26 @@
       paired: !!(h && h.paired),
       claude: state.claude,
       hasKey: !!state.key,
+      orConnected: !!state.orKey,
+      orModel: state.orModel,
       alias: state.alias,
       model: state.model,
     };
   }
   const configured = () =>
-    state.mode === "signin" ? state.ready : !!state.key;
-  const label = () =>
     state.mode === "signin"
-      ? state.claude && state.claude.email
-        ? "Signed in · " + state.alias
-        : "Signed in with Claude"
-      : state.model;
+      ? state.ready
+      : state.mode === "openrouter"
+        ? !!state.orKey
+        : !!state.key;
+  const label = () =>
+    state.mode === "openrouter"
+      ? "OpenRouter · " + (state.orModel || "pick a model").split("/").pop()
+      : state.mode === "signin"
+        ? state.claude && state.claude.email
+          ? "Signed in · " + state.alias
+          : "Signed in with Claude"
+        : state.model;
 
   /* ---------- one request ---------- */
   async function viaHelper(system, user) {
@@ -225,6 +245,92 @@
       .map((b) => b.text)
       .join("");
   }
+  /** One request through OpenRouter (any model it offers, billed to your OpenRouter credits). */
+  async function viaOpenRouter(system, user, max, images) {
+    if (!state.orModel)
+      throw new AIError("Pick a model for OpenRouter first.", { nokey: true });
+    const content =
+      images && images.length
+        ? [
+            ...images.map((data) => ({
+              type: "image_url",
+              image_url: { url: "data:image/jpeg;base64," + data },
+            })),
+            { type: "text", text: user },
+          ]
+        : user;
+    let res;
+    try {
+      res = await fetch(OR_BASE + "/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: "Bearer " + state.orKey,
+          "X-Title": "Reel Studio",
+        },
+        body: JSON.stringify({
+          model: state.orModel,
+          max_tokens: max,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content },
+          ],
+        }),
+      });
+    } catch (e) {
+      throw new AIError("Could not reach OpenRouter. Check your connection.", {
+        network: true,
+      });
+    }
+    let j = null;
+    try {
+      j = await res.json();
+    } catch (e) {
+      /* not json */
+    }
+    if (!res.ok || !j || j.error) {
+      const msg = (j && j.error && (j.error.message || j.error)) || "";
+      if (res.status === 401)
+        throw new AIError(
+          "OpenRouter rejected the sign-in. Sign in with OpenRouter again.",
+          { status: 401, nokey: true },
+        );
+      if (res.status === 402)
+        throw new AIError(
+          "You are out of OpenRouter credits. Add credits at openrouter.ai/credits.",
+          { status: 402 },
+        );
+      if (
+        res.status === 404 ||
+        /no endpoints|not a valid model/i.test(String(msg))
+      )
+        throw new AIError(
+          "OpenRouter has no available provider for that model right now. Pick another model.",
+          { status: 404 },
+        );
+      if (res.status === 429)
+        throw new AIError(
+          "OpenRouter says you are sending too many requests. Wait a minute and try again.",
+          { status: 429 },
+        );
+      throw new AIError(
+        String(msg).slice(0, 300) ||
+          "OpenRouter returned an error (HTTP " + res.status + ").",
+        { status: res.status },
+      );
+    }
+    const m = j.choices && j.choices[0] && j.choices[0].message;
+    const text = !m
+      ? ""
+      : Array.isArray(m.content)
+        ? m.content.map((p) => p.text || "").join("")
+        : String(m.content || "");
+    if (!text)
+      throw new AIError(
+        "The model returned an empty answer. Try again or pick another model.",
+      );
+    return text;
+  }
   async function ask({ system, user, max = 1500, json = false }) {
     if (state.mode === "signin") {
       if (!state.ready) {
@@ -232,12 +338,17 @@
         if (!state.ready)
           throw new AIError("Sign in with Claude first.", { nokey: true });
       }
+    } else if (state.mode === "openrouter") {
+      if (!state.orKey)
+        throw new AIError("Sign in with OpenRouter first.", { nokey: true });
     } else if (!state.key)
       throw new AIError("Add your Claude API key first.", { nokey: true });
     const text =
       state.mode === "signin"
         ? await viaHelper(system, user)
-        : await viaKey(system, user, max);
+        : state.mode === "openrouter"
+          ? await viaOpenRouter(system, user, max)
+          : await viaKey(system, user, max);
     return json ? extractJson(text) : text;
   }
 
@@ -249,6 +360,9 @@
         if (!state.ready)
           throw new AIError("Sign in with Claude first.", { nokey: true });
       }
+    } else if (state.mode === "openrouter") {
+      if (!state.orKey)
+        throw new AIError("Sign in with OpenRouter first.", { nokey: true });
     } else if (!state.key)
       throw new AIError("Connect Claude first.", { nokey: true });
     let text;
@@ -263,9 +377,143 @@
       } catch (e) {
         throw new AIError(e.message, { offline: e.offline, status: e.status });
       }
-    } else text = await viaKey(system, user, max, images);
+    } else if (state.mode === "openrouter")
+      text = await viaOpenRouter(system, user, max, images);
+    else text = await viaKey(system, user, max, images);
     return json ? extractJson(text) : text;
   }
+
+  /* ---------- Sign in with OpenRouter (OAuth PKCE): a key of your own, billed to your OpenRouter credits ---------- */
+  const b64u = (bytes) =>
+    btoa(String.fromCharCode(...new Uint8Array(bytes)))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+  async function orSignIn() {
+    const verifier = b64u(crypto.getRandomValues(new Uint8Array(32))),
+      st = b64u(crypto.getRandomValues(new Uint8Array(12))),
+      challenge = b64u(
+        await crypto.subtle.digest(
+          "SHA-256",
+          new TextEncoder().encode(verifier),
+        ),
+      );
+    sessionStorage.setItem(OR_PENDING, JSON.stringify({ verifier, state: st }));
+    const u = new window.URL(OR_BASE + "/auth"); // (URL is the name of the Anthropic address in this file)
+    u.searchParams.set("callback_url", location.origin + "/");
+    u.searchParams.set("code_challenge", challenge);
+    u.searchParams.set("code_challenge_method", "S256");
+    u.searchParams.set("state", st);
+    u.searchParams.set("key_label", "Reel Studio");
+    location.assign(u.toString());
+  }
+  /** Finish a sign-in when OpenRouter sends the browser back with ?code=… Returns true if it handled one. */
+  async function orInit() {
+    const q = new URLSearchParams(location.search),
+      code = q.get("code"),
+      st = q.get("state");
+    if (!code || !st) return false;
+    let p = null;
+    try {
+      p = JSON.parse(sessionStorage.getItem(OR_PENDING) || "null");
+    } catch (e) {
+      p = null;
+    }
+    if (!p || p.state !== st) return false; // not ours
+    sessionStorage.removeItem(OR_PENDING);
+    history.replaceState(null, "", location.pathname);
+    let res;
+    try {
+      res = await fetch(OR_BASE + "/api/v1/auth/keys", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          code,
+          code_verifier: p.verifier,
+          code_challenge_method: "S256",
+        }),
+      });
+    } catch (e) {
+      throw new AIError("Could not reach OpenRouter to finish signing in.");
+    }
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || !j.key)
+      throw new AIError(
+        (j.error && (j.error.message || j.error)) ||
+          "OpenRouter did not give a key. Try signing in again.",
+      );
+    state.orKey = j.key;
+    try {
+      localStorage.setItem(OR_KEY, j.key);
+    } catch (e) {
+      /* storage blocked */
+    }
+    state.mode = "openrouter";
+    persist();
+    return true;
+  }
+  function orSignOut() {
+    state.orKey = "";
+    try {
+      localStorage.removeItem(OR_KEY);
+    } catch (e) {
+      /* storage blocked */
+    }
+    if (state.mode === "openrouter") state.mode = HOSTED ? "key" : "signin";
+    persist();
+  }
+  let orList = null;
+  /** The models OpenRouter offers: those that can see pictures first (the director can then watch reference videos). */
+  async function orModels() {
+    if (orList) return orList;
+    let j;
+    try {
+      j = await (await fetch(OR_BASE + "/api/v1/models")).json();
+    } catch (e) {
+      throw new AIError(
+        "Could not load OpenRouter's model list. Check your connection.",
+        { network: true },
+      );
+    }
+    const first = [
+      "anthropic",
+      "openai",
+      "google",
+      "x-ai",
+      "meta-llama",
+      "mistralai",
+      "deepseek",
+      "qwen",
+    ];
+    const rows = (j.data || [])
+      .filter((m) => m && m.id && !/:extended$/.test(m.id))
+      .map((m) => {
+        const mods = (m.architecture && m.architecture.input_modalities) || [];
+        return {
+          id: m.id,
+          name: m.name || m.id,
+          vision: mods.includes("image"),
+          created: m.created || 0,
+          vendor: m.id.split("/")[0],
+        };
+      })
+      .filter((m) => first.includes(m.vendor))
+      .sort(
+        (a, b) =>
+          first.indexOf(a.vendor) - first.indexOf(b.vendor) ||
+          b.created - a.created,
+      );
+    return (orList = rows);
+  }
+  const pickDefaultModel = (rows) => {
+    const a = rows.filter((m) => m.vendor === "anthropic" && m.vision);
+    return (
+      a.find((m) => /sonnet/i.test(m.id)) ||
+      a[0] ||
+      rows.find((m) => m.vision) ||
+      rows[0] || { id: "" }
+    ).id;
+  };
 
   const arr = (v) =>
     Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : [];
@@ -605,7 +853,18 @@ Return {"title":"...","hook":"...","body":["..."],"comment":"...","breakdown":[{
     hosted: HOSTED,
     mode: () => state.mode,
     setMode(m) {
-      state.mode = m === "key" ? "key" : "signin";
+      state.mode = m === "key" || m === "openrouter" ? m : "signin";
+      persist();
+    },
+    orSignIn,
+    orInit,
+    orSignOut,
+    orModels,
+    pickDefaultModel,
+    orModel: () => state.orModel,
+    orConnected: () => !!state.orKey,
+    setOrModel(id) {
+      state.orModel = String(id || "").trim();
       persist();
     },
     alias: () => state.alias,

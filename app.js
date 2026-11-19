@@ -3783,6 +3783,79 @@
     )
       render();
   }
+  /* OpenRouter: sign in once, then pick any model to act as the AI director and writer */
+  async function renderOpenRouter() {
+    const box = $("#aiOrBox");
+    if (!AI.orConnected()) {
+      box.innerHTML = `<div class="state">${svg("sparkles", 16)}<div><b>Sign in with OpenRouter</b><span>One click. OpenRouter gives Studio a key of your own and your usage is billed to your OpenRouter credits. Pick any model, such as Claude, GPT or Gemini, to be the AI director. It works on this deployed site and on your computer, with no helper.</span></div></div>
+      <button type="button" class="btn primary wide" id="orSignIn">${svg("sparkles", 16)} Sign in with OpenRouter</button>
+      <p class="muted small">You can set a spending limit when you approve it, and revoke the key any time at openrouter.ai/keys.</p>`;
+      $("#orSignIn").onclick = async (e) => {
+        busy(e.currentTarget, true, "Opening OpenRouter…");
+        try {
+          await AI.orSignIn();
+        } catch (err) {
+          apiMsg(err.message, "bad");
+          busy(e.currentTarget, false);
+        }
+      };
+      return;
+    }
+    box.innerHTML = `<div class="state ok">${svg("check", 16)}<div><b>Signed in with OpenRouter</b><span>Studio uses the model below as the AI director, script writer and clip tagger.</span></div></div>
+    <label>Model <select id="orModel"><option>Loading models…</option></select></label>
+    <label>Or type a model id <input id="orModelId" type="text" autocomplete="off" spellcheck="false" placeholder="e.g. anthropic/claude-sonnet-4.5" value="${esc(AI.orModel())}"></label>
+    <p class="muted small" id="orHint"></p>
+    <div class="row end"><button type="button" class="linkbtn danger" id="orOut" style="margin-right:auto">Sign out</button><button type="button" class="btn primary" id="orTest">Test</button></div>`;
+    const sel = $("#orModel");
+    try {
+      const rows = await AI.orModels();
+      if (!AI.orModel()) AI.setOrModel(AI.pickDefaultModel(rows));
+      sel.innerHTML =
+        `<option value="">Choose a model…</option>` +
+        rows
+          .map(
+            (m) =>
+              `<option value="${esc(m.id)}" ${m.id === AI.orModel() ? "selected" : ""}>${m.vision ? "👁 " : ""}${esc(m.name)}</option>`,
+          )
+          .join("");
+      $("#orModelId").value = AI.orModel();
+      $("#orHint").textContent =
+        "👁 means the model can look at pictures, which the director needs to watch reference videos and tag your clips.";
+      renderRailCards();
+    } catch (err) {
+      sel.innerHTML = `<option value="">Could not load the list</option>`;
+      $("#orHint").textContent =
+        err.message + " You can still type a model id above.";
+    }
+    sel.onchange = () => {
+      AI.setOrModel(sel.value);
+      $("#orModelId").value = sel.value;
+      renderRailCards();
+    };
+    $("#orModelId").onchange = (e) => {
+      AI.setOrModel(e.target.value);
+      renderRailCards();
+    };
+    $("#orOut").onclick = () => {
+      AI.orSignOut();
+      renderAiTabs();
+      renderRailCards();
+      apiMsg("Signed out of OpenRouter.");
+      if (onStage("production")) viewProduction();
+    };
+    $("#orTest").onclick = async (e) => {
+      busy(e.currentTarget, true, "Asking the model…");
+      apiMsg("Asking the model to say OK…");
+      try {
+        await AI.test();
+        apiMsg("Connected. The model answered.", "ok");
+      } catch (err) {
+        apiMsg(err.message, "bad");
+      } finally {
+        busy(e.currentTarget, false);
+      }
+    };
+  }
   function renderAiTabs() {
     const m = AI.mode();
     $$("#aiTabs [data-mode]").forEach((b) =>
@@ -3790,6 +3863,8 @@
     );
     $("#aiSignin").hidden = m !== "signin";
     $("#aiKeyBox").hidden = m !== "key";
+    $("#aiOrBox").hidden = m !== "openrouter";
+    if (m === "openrouter") renderOpenRouter();
     const hn = $("#aiHostNote");
     hn.hidden = !AI.hosted;
     if (AI.hosted)
@@ -4472,6 +4547,15 @@
           .catch(() => {});
       if (cameBack && !IG.connected()) openIg();
     });
+  AI.orInit()
+    .then((back) => {
+      if (back) {
+        toast("Signed in with OpenRouter");
+        renderRailCards();
+        openApi();
+      }
+    })
+    .catch((err) => toast(err.message));
   AI.refresh().then(() => {
     renderRailCards();
     if (AI.configured() && onStage("production")) render();

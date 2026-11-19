@@ -123,6 +123,12 @@ What works on the deployed site, and what needs your computer:
 | Voice-over                          | ElevenLabs key                                                                                 | Edge voices or ElevenLabs       |
 | Instagram insights                  | Yes: sign in with Composio                                                                     | Yes: sign in with Composio      |
 
+### Sign in with OpenRouter (works on the deployed site, no helper)
+
+**AI & voice → OpenRouter → Sign in with OpenRouter** uses OpenRouter's own OAuth (PKCE) sign-in, which is made for web apps: you approve Studio on openrouter.ai (you can set a spending limit) and OpenRouter gives Studio **a key of your own**, billed to **your OpenRouter credits**. Nothing passes through a server of ours, and revoking it at openrouter.ai/keys stops it at once.
+
+Then pick any model (Claude, GPT, Gemini, Grok, Llama, Mistral, DeepSeek, Qwen; the 👁 ones can look at pictures) or type a model id. That model acts as the **AI director**, the script writer, the clip tagger and the reel watcher: everything that uses Claude elsewhere in Studio goes through it, including watching a reference video. Rendering itself stays in your browser. The key is kept in this browser; **Sign out** removes it. A model without picture support can still direct from the script alone, but can't watch reference videos or tag clips.
+
 ### Sign in with Claude (desktop, web and the deployed site)
 
 Studio signs in with your Claude account the way tools like OpenClaw-style agents do: by driving **Claude Code on your own computer** through the helper, never by copying a Claude login into a web page (Anthropic doesn't allow that for third-party apps, and a website can't hold your Claude session safely).
@@ -254,6 +260,7 @@ A rule-based score out of 100, not a trained model. It starts at 100 and loses p
 - `tools.js`: pure logic with no page code: link parsing, script splitting, paste handling, hook analysis and the learning loop
 - `tests/tools.test.js`: unit tests for `tools.js`. Run `node tests/tools.test.js`
 - `tests/helper_check.py`: checks the helper's security, sign-in plumbing and OAuth relay. Run `python3 tests/helper_check.py`
+- `tests/openrouter.test.js`: checks Sign in with OpenRouter and its requests. Run `node tests/openrouter.test.js`
 - `tests/helper.test.js`: checks how a deployed site pairs with the helper. Run `node tests/helper.test.js`
 - `tests/worker.test.mjs`: checks the Worker's sign-in relay. Run `node tests/worker.test.mjs`
 - `tests/instagram.test.js`: checks the Composio sign-in and Instagram client against a stand-in for Composio. Run `node tests/instagram.test.js`
