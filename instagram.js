@@ -416,7 +416,11 @@
     return {
       ok: !failed && d && typeof d === "object",
       data: d && typeof d === "object" ? d : {},
-      error: failed ? errText(r.error) || "Instagram refused the request." : "",
+      error: failed
+        ? errText(r.error) ||
+          specific(collectErrors(item)).join(" · ") ||
+          "Instagram refused the request."
+        : "",
     };
   }
   /** Runs several read-only Instagram tools in one request. Resolves [{ ok, data, error }] in the same order. */
@@ -435,7 +439,13 @@
     let results = body.results || [];
     if (!Array.isArray(results)) results = Object.values(results);
     if (out.successful === false && !results.length)
-      throw new IGError(errText(out.error) || "Composio could not run that.");
+      throw new IGError(
+        (specific(collectErrors(out)).join(" · ") ||
+          "Composio could not run that.") +
+          " [" +
+          snippet(out) +
+          "]",
+      );
     if (!results.length)
       throw new IGError(
         "Composio sent a reply Studio could not read: " + snippet(out),
@@ -444,24 +454,42 @@
       normalize(results.find((x) => x && x.index === i) || results[i]),
     );
   }
+  /** Every error message found anywhere in a reply, so "1 out of 1 tools failed" comes with the real reason. */
+  function collectErrors(o, depth = 0, out = []) {
+    if (!o || depth > 6 || typeof o !== "object") return out;
+    for (const [k, v] of Object.entries(o)) {
+      if (
+        /^(error|message|error_message|detail|reason|description)$/i.test(k) &&
+        typeof v === "string" &&
+        v &&
+        !out.includes(v)
+      )
+        out.push(v);
+      else if (v && typeof v === "object") collectErrors(v, depth + 1, out);
+    }
+    return out;
+  }
+  const generic = /^\d+ out of \d+ tools? failed\.?$/i;
+  const specific = (list) =>
+    [...list].sort((x, y) => generic.test(x) - generic.test(y));
   const errText = (e) =>
     !e ? "" : typeof e === "string" ? e : e.message || JSON.stringify(e);
 
   /* ---------- Instagram calls ---------- */
   const spec = {
-    profile: () => ({
+    profile: (id = "me") => ({
       tool: "INSTAGRAM_GET_USER_INFO",
       args: {
-        ig_user_id: "me",
+        ig_user_id: id,
         fields:
           "id,username,name,profile_picture_url,followers_count,follows_count,media_count",
       },
     }),
-    totals: (metrics, since, until, breakdown) => ({
+    totals: (metrics, since, until, breakdown, id = "me") => ({
       tool: "INSTAGRAM_GET_USER_INSIGHTS",
       args: Object.assign(
         {
-          ig_user_id: "me",
+          ig_user_id: id,
           metric: metrics,
           period: "day",
           metric_type: "total_value",
@@ -471,20 +499,20 @@
         breakdown ? { breakdown } : {},
       ),
     }),
-    followers: (since, until) => ({
+    followers: (since, until, id = "me") => ({
       tool: "INSTAGRAM_GET_USER_INSIGHTS",
       args: {
-        ig_user_id: "me",
+        ig_user_id: id,
         metric: ["follower_count"],
         period: "day",
         since,
         until,
       },
     }),
-    media: () => ({
+    media: (id = "me") => ({
       tool: "INSTAGRAM_GET_IG_USER_MEDIA",
       args: {
-        ig_user_id: "me",
+        ig_user_id: id,
         limit: 25,
         fields:
           "id,caption,media_type,media_product_type,permalink,thumbnail_url,media_url,timestamp,like_count,comments_count,insights.metric(views,reach,saved,shares,total_interactions)",
@@ -648,6 +676,8 @@
       accounts.set(a.id, {
         id: a.id,
         alias: a.alias || "",
+        igId: a.user_info && a.user_info.id ? String(a.user_info.id) : "",
+        igRef: "me",
         username: (a.user_info && a.user_info.username) || a.alias || "",
         profile: null,
         status: "idle",
@@ -740,9 +770,21 @@
     )
       return out;
     await step("Read the Instagram profile", async () => {
-      const [r] = await runMany([spec.profile()]);
-      if (!r.ok) throw new IGError(r.error || "Instagram refused the request.");
-      return `${r.data.username || "?"} · ${r.data.followers_count || 0} followers`;
+      const refs = ["me", a.igId].filter(
+        (x, i, arr) => x && arr.indexOf(x) === i,
+      );
+      let last = "";
+      for (const ref of refs) {
+        try {
+          const [r] = await runMany([spec.profile(ref)]);
+          if (r.ok)
+            return `${r.data.username || "?"} · ${r.data.followers_count || 0} followers${ref === "me" ? "" : " (using the account id)"}`;
+          last = `${ref === "me" ? "" : "[id " + ref + "] "}${r.error || "Instagram refused the request."}`;
+        } catch (e) {
+          last = `${ref === "me" ? "" : "[id " + ref + "] "}${e.message}`;
+        }
+      }
+      throw new IGError(last);
     });
     return out;
   }
@@ -758,15 +800,41 @@
       const now = Math.floor(Date.now() / 1000),
         since = now - days * DAY,
         notes = [];
-      const res = await runMany([
-        spec.profile(),
-        spec.totals(["views"], since, now, "follow_type"),
-        spec.totals(["reach", "total_interactions"], since, now),
-        spec.followers(since, now),
-        spec.media(),
-        spec.totals(["views"], since - days * DAY, since),
-        spec.totals(["reach", "total_interactions"], since - days * DAY, since),
-      ]);
+      /* "me" works for most connections; if the profile read fails, try the account's own Instagram id */
+      const batch = (ref) =>
+        runMany([
+          spec.profile(ref),
+          spec.totals(["views"], since, now, "follow_type", ref),
+          spec.totals(
+            ["reach", "total_interactions"],
+            since,
+            now,
+            undefined,
+            ref,
+          ),
+          spec.followers(since, now, ref),
+          spec.media(ref),
+          spec.totals(["views"], since - days * DAY, since, undefined, ref),
+          spec.totals(
+            ["reach", "total_interactions"],
+            since - days * DAY,
+            since,
+            undefined,
+            ref,
+          ),
+        ]);
+      let res;
+      try {
+        res = await batch(a.igRef || "me");
+      } catch (e) {
+        if (!a.igId || a.igRef === a.igId || e.needsLogin || e.network) throw e;
+        a.igRef = a.igId;
+        res = await batch(a.igRef);
+      }
+      if (!res[0].ok && a.igId && a.igRef !== a.igId) {
+        a.igRef = a.igId;
+        res = await batch(a.igRef);
+      }
       const [rProfile, rViews, rOther, rFol, rMedia, rpViews, rpOther] = res;
       if (!rProfile.ok)
         throw new IGError(

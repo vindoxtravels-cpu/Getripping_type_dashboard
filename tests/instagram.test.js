@@ -70,6 +70,17 @@ const media = [
 ];
 function execute(t) {
   const a = t.arguments;
+  if (replyMode === "allFail")
+    return {
+      successful: false,
+      error: "Permission denied: instagram_business_basic",
+    };
+  if (replyMode === "meFails" && a.ig_user_id === "me")
+    return {
+      successful: false,
+      error:
+        "(#100) Tried accessing nonexisting field (username) on node type (User)",
+    };
   let data = {};
   if (t.tool_slug === "INSTAGRAM_GET_USER_INFO")
     data = {
@@ -172,7 +183,7 @@ global.fetch = async (url, init = {}) => {
                 {
                   id: "instagram_x",
                   alias: "me_ig",
-                  user_info: { username: "me_ig" },
+                  user_info: { username: "me_ig", id: "9999" },
                   status: "ACTIVE",
                   is_default: true,
                 },
@@ -439,6 +450,35 @@ const IG = window.IG;
       /could not read/.test(bad.message) &&
       /workbench/.test(bad.message),
     bad && bad.message,
+  );
+  replyMode = "meFails";
+  const viaId = await IG.refresh(accts[0].id, 30);
+  check(
+    'if "me" is refused, the account\'s own id is tried',
+    viaId.profile.followers === 5 &&
+      viaId.views === 1971 &&
+      IG.get(accts[0].id).igRef === "9999",
+  );
+  replyMode = "allFail";
+  let denied = null;
+  try {
+    await IG.refresh(accts[0].id, 30);
+  } catch (e) {
+    denied = e;
+  }
+  check(
+    "the real reason is shown when Instagram refuses",
+    !!denied &&
+      /Permission denied: instagram_business_basic/.test(denied.message),
+    denied && denied.message,
+  );
+  const dd = await IG.diagnose();
+  check(
+    "diagnostics show the real reason too",
+    dd.length === 5 &&
+      dd[4].ok === false &&
+      /Permission denied/.test(dd[4].detail),
+    JSON.stringify(dd[4]),
   );
   replyMode = "text";
 
