@@ -383,7 +383,25 @@ const IG = window.IG;
       after.at(-1).token.grant_type === "refresh_token",
   );
 
+  const diag = await IG.diagnose();
+  check(
+    "diagnostics report each step and succeed when all is well",
+    diag.length === 5 &&
+      diag.every((x) => x.ok) &&
+      /me_ig/.test(diag[3].detail) &&
+      /5 followers/.test(diag[4].detail),
+    JSON.stringify(diag),
+  );
+
   IG.signOut();
+  const out = await IG.diagnose();
+  check(
+    "diagnostics stop at the step that fails",
+    out.length === 2 &&
+      out[1].ok === false &&
+      /Not signed in/.test(out[1].detail),
+    JSON.stringify(out),
+  );
   check(
     "sign out clears the token",
     IG.setup().signedIn === false &&

@@ -638,6 +638,60 @@
     return "";
   }
 
+  /** Step-by-step connection check, so a failure says exactly where it stopped. Resolves [{ label, ok, detail }]. */
+  async function diagnose() {
+    const out = [];
+    const step = async (label, fn) => {
+      try {
+        out.push({ label, ok: true, detail: (await fn()) || "" });
+        return true;
+      } catch (e) {
+        out.push({ label, ok: false, detail: e.message || String(e) });
+        return false;
+      }
+    };
+    if (
+      !(await step("Reach Composio's sign-in", async () => {
+        await metadata();
+      }))
+    )
+      return out;
+    if (
+      !(await step("Signed in with Composio", async () => {
+        if (!tokens) throw new IGError("Not signed in yet.");
+        await freshToken();
+        return "token valid";
+      }))
+    )
+      return out;
+    if (
+      !(await step("Open a Composio session", async () => {
+        await openSession();
+        return mcpSession === "stateless" ? "stateless" : "session started";
+      }))
+    )
+      return out;
+    let a = null;
+    if (
+      !(await step("Find your Instagram account", async () => {
+        await sync();
+        a = active();
+        if (!a)
+          throw new IGError(
+            "Composio has no active Instagram account for you. Press Connect Instagram.",
+          );
+        return "@" + (a.username || a.alias || a.id);
+      }))
+    )
+      return out;
+    await step("Read the Instagram profile", async () => {
+      const [r] = await runMany([spec.profile()]);
+      if (!r.ok) throw new IGError(r.error || "Instagram refused the request.");
+      return `${r.data.username || "?"} · ${r.data.followers_count || 0} followers`;
+    });
+    return out;
+  }
+
   /* ---------- public: data ---------- */
   async function refresh(id, days) {
     const a = accounts.get(id);
@@ -791,6 +845,7 @@
     signIn,
     signOut,
     sync,
+    diagnose,
     link,
     refresh,
     findByUrl,

@@ -3329,6 +3329,7 @@
         : "Connect Instagram";
     $("#igMain").classList.toggle("primary", !st.connected || !st.signedIn);
     $("#igCheck").hidden = !st.signedIn;
+    $("#igTest").hidden = !st.signedIn;
     $("#igOut").hidden = !st.signedIn;
   }
   async function igSync(quiet) {
@@ -3380,6 +3381,24 @@
       );
     } catch (err) {
       igMsg(err.message, "bad");
+    } finally {
+      busy(btn, false);
+    }
+  };
+  $("#igTest").onclick = async (e) => {
+    const btn = e.currentTarget,
+      ul = $("#igDiag");
+    busy(btn, true, "Checking…");
+    ul.hidden = false;
+    ul.innerHTML = "<li>Running checks…</li>";
+    try {
+      const steps = await IG.diagnose();
+      ul.innerHTML = steps
+        .map(
+          (x) =>
+            `<li class="${x.ok ? "done" : "fail"}">${svg(x.ok ? "check" : "x", 14)} <span><b>${esc(x.label)}</b>${x.detail ? ` · ${esc(x.detail)}` : ""}</span></li>`,
+        )
+        .join("");
     } finally {
       busy(btn, false);
     }
