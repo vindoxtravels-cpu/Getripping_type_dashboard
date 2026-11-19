@@ -357,17 +357,67 @@
       .filter((c) => c.type === "text")
       .map((c) => c.text)
       .join("");
-    let out = null;
-    try {
-      out = JSON.parse(text);
-    } catch (e) {
-      /* plain text */
-    }
+    const tryJson = (t) => {
+      try {
+        const v = JSON.parse(t);
+        return v && typeof v === "object" ? v : null;
+      } catch (e) {
+        return null;
+      }
+    };
+    /* the structured result if the server sends one, else the JSON in the text (also when wrapped in other words) */
+    let out =
+      (result && result.structuredContent) ||
+      tryJson(text) ||
+      tryJson(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
     if (result && result.isError)
       throw new IGError(
-        (out && out.error) || text || "Composio could not do that.",
+        (out && errText(out.error)) || text || "Composio could not do that.",
       );
     return out || { raw: text };
+  }
+  const snippet = (v) => {
+    let t = "";
+    try {
+      t = typeof v === "string" ? v : JSON.stringify(v);
+    } catch (e) {
+      t = String(v);
+    }
+    return t.length > 260 ? t.slice(0, 260) + "…" : t;
+  };
+  const WRAP = [
+    "data",
+    "successful",
+    "error",
+    "composio_execution_message",
+    "log_id",
+  ];
+  /** One result of a batched run → { ok, data, error }, whichever way the reply is wrapped. */
+  function normalize(item) {
+    if (!item || typeof item !== "object")
+      return { ok: false, data: {}, error: "No result came back." };
+    const r = item.response || item.result || item;
+    let d = r.data !== undefined ? r.data : r.response_data;
+    if (d === undefined) d = r;
+    for (
+      let i = 0;
+      i < 3 &&
+      d &&
+      typeof d === "object" &&
+      !Array.isArray(d) &&
+      d.data &&
+      typeof d.data === "object" &&
+      !Array.isArray(d.data) &&
+      Object.keys(d).every((k) => WRAP.includes(k));
+      i++
+    )
+      d = d.data;
+    const failed = r.successful === false || !!r.error;
+    return {
+      ok: !failed && d && typeof d === "object",
+      data: d && typeof d === "object" ? d : {},
+      error: failed ? errText(r.error) || "Instagram refused the request." : "",
+    };
   }
   /** Runs several read-only Instagram tools in one request. Resolves [{ ok, data, error }] in the same order. */
   async function runMany(calls) {
@@ -381,19 +431,18 @@
       memory: {},
       thought: "Read Instagram insights for the dashboard",
     });
-    const body = out.data || out,
-      results = body.results || [];
+    const body = out.data || out;
+    let results = body.results || [];
+    if (!Array.isArray(results)) results = Object.values(results);
     if (out.successful === false && !results.length)
       throw new IGError(errText(out.error) || "Composio could not run that.");
-    return calls.map((_, i) => {
-      const r =
-        (results.find((x) => x.index === i) || results[i] || {}).response || {};
-      return {
-        ok: r.successful !== false && !r.error,
-        data: r.data || {},
-        error: errText(r.error),
-      };
-    });
+    if (!results.length)
+      throw new IGError(
+        "Composio sent a reply Studio could not read: " + snippet(out),
+      );
+    return calls.map((_, i) =>
+      normalize(results.find((x) => x && x.index === i) || results[i]),
+    );
   }
   const errText = (e) =>
     !e ? "" : typeof e === "string" ? e : e.message || JSON.stringify(e);
@@ -442,9 +491,15 @@
       },
     }),
   };
+  /** The array of rows in a Graph reply ({ data: [...] }), however deeply the reply is wrapped. */
+  function rows(d, depth = 0) {
+    if (!d || depth > 3) return [];
+    if (Array.isArray(d)) return d;
+    return rows(d.data, depth + 1);
+  }
   function parseTotals(data) {
     const out = {};
-    ((data && data.data) || []).forEach((d) => {
+    rows(data).forEach((d) => {
       const tv = d.total_value;
       if (!tv) return;
       const parts = {};
@@ -721,11 +776,22 @@
       const note = (label, r) => {
         if (!r.ok) notes.push(`${label}: ${r.error || "unavailable"}`);
       };
+      const empty = (label, r, ok) => {
+        if (r.ok && !ok)
+          notes.push(
+            `${label}: Instagram returned no data (${snippet(r.data)})`,
+          );
+      };
       note("Views", rViews);
       note("Reach", rOther);
       note("Followers", rFol);
       note("Media", rMedia);
       const pd = rProfile.data;
+      if (pd.username === undefined && pd.followers_count === undefined)
+        throw new IGError(
+          "Composio's reply for the Instagram profile was not what Studio expected: " +
+            snippet(pd),
+        );
       const profile = {
         username: pd.username || a.alias || "",
         name: pd.name || "",
@@ -742,13 +808,14 @@
         inter = other.total_interactions,
         pViews = rpViews.ok ? parseTotals(rpViews.data).views : null,
         pOther = rpOther.ok ? parseTotals(rpOther.data) : {};
+      empty("Views", rViews, views);
+      empty("Reach", rOther, reach);
       const fser = rFol.ok
-        ? (
-            (rFol.data.data && rFol.data.data[0] && rFol.data.data[0].values) ||
-            []
-          ).map((v) => ({ date: v.end_time, delta: v.value || 0 }))
+        ? ((rows(rFol.data)[0] && rows(rFol.data)[0].values) || []).map(
+            (v) => ({ date: v.end_time, delta: v.value || 0 }),
+          )
         : null;
-      const list2 = rMedia.ok ? rMedia.data.data || [] : [];
+      const list2 = rMedia.ok ? rows(rMedia.data) : [];
       const reelsRaw = list2
         .filter(
           (m) => m.media_product_type === "REELS" || m.media_type === "VIDEO",

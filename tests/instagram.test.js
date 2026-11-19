@@ -25,7 +25,8 @@ global.location = {
 global.history = { replaceState: () => {} };
 
 const calls = [];
-let tokenOk = true,
+let replyMode = "text",
+  tokenOk = true,
   sseMode = true,
   expireAccess = false,
   tokenIssued = 0;
@@ -204,9 +205,32 @@ global.fetch = async (url, init = {}) => {
         },
       };
     } else payload = { successful: false, error: "nope" };
-    const result = {
-      content: [{ type: "text", text: JSON.stringify(payload) }],
-    };
+    const text = JSON.stringify(payload);
+    const result =
+      replyMode === "structured"
+        ? {
+            content: [{ type: "text", text: "Done." }],
+            structuredContent: payload,
+          }
+        : replyMode === "prose"
+          ? {
+              content: [
+                {
+                  type: "text",
+                  text: "Here is the result:\n" + text + "\nEnd.",
+                },
+              ],
+            }
+          : replyMode === "unreadable"
+            ? {
+                content: [
+                  {
+                    type: "text",
+                    text: "Executed 7 tools. See workbench file /tmp/x.json",
+                  },
+                ],
+              }
+            : { content: [{ type: "text", text }] };
     const msg = { jsonrpc: "2.0", id: m.id, result };
     if (sseMode)
       return new Response(`event: message\ndata: ${JSON.stringify(msg)}\n\n`, {
@@ -392,6 +416,31 @@ const IG = window.IG;
       /5 followers/.test(diag[4].detail),
     JSON.stringify(diag),
   );
+
+  for (const mode of ["structured", "prose"]) {
+    replyMode = mode;
+    const dm = await IG.refresh(accts[0].id, 30);
+    check(
+      `a ${mode} reply is read the same way`,
+      dm.views === 1971 && dm.reels.length === 1 && dm.profile.followers === 5,
+      JSON.stringify(dm.notes),
+    );
+  }
+  replyMode = "unreadable";
+  let bad = null;
+  try {
+    await IG.refresh(accts[0].id, 30);
+  } catch (e) {
+    bad = e;
+  }
+  check(
+    "an unreadable reply is an error that shows the reply, not silent zeros",
+    !!bad &&
+      /could not read/.test(bad.message) &&
+      /workbench/.test(bad.message),
+    bad && bad.message,
+  );
+  replyMode = "text";
 
   IG.signOut();
   const out = await IG.diagnose();
