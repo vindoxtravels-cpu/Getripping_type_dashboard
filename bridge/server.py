@@ -44,6 +44,24 @@ PORT = int(os.environ.get("PORT", "5174"))
 TOKEN = secrets.token_urlsafe(24)
 HOSTS = {f"localhost:{PORT}", f"127.0.0.1:{PORT}"}
 ORIGINS = {f"http://{h}" for h in HOSTS}
+SITE_RE = re.compile(r"^https://[A-Za-z0-9.-]+(:\d{1,5})?$")
+
+
+def load_sites():
+    """Deployed sites you allowed with ./bridge/start.sh --allow https://your-site (kept in bridge/.sites)."""
+    out = set()
+    path = Path(__file__).resolve().parent / ".sites"
+    raw = os.environ.get("STUDIO_SITES", "") + "\n" + (path.read_text() if path.exists() else "")
+    for line in raw.replace(",", "\n").splitlines():
+        line = line.strip().rstrip("/")
+        if SITE_RE.match(line):
+            out.add(line)
+    return out
+
+
+SITES = load_sites()
+PAIR_CODE = secrets.token_hex(4).upper()  # shown in this terminal each time the helper starts
+PAIR_FAILS = {"n": 0}
 MIME = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
         ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".png": "image/png", ".ico": "image/x-icon", ".json": "application/json"}
 HIDDEN_DIRS = {"bridge", "tests", "node_modules", "reference"}
@@ -369,10 +387,31 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(data)))
             self.send_header("Cache-Control", cache)
             self.send_header("X-Content-Type-Options", "nosniff")
+            self._cors_headers()
             self.end_headers()
             self.wfile.write(data)
         except (BrokenPipeError, ConnectionResetError):
             pass  # the page was reloaded or closed before the reply arrived: nothing to report
+
+    def _site(self):
+        """The origin of a deployed site you allowed, or None."""
+        o = self.headers.get("Origin")
+        return o if o in SITES else None
+
+    def _cors_headers(self):
+        o = self._site()
+        if o:
+            self.send_header("Access-Control-Allow-Origin", o)
+            self.send_header("Vary", "Origin")
+            self.send_header("Access-Control-Allow-Headers", "content-type, x-studio-token")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Private-Network", "true")
+            self.send_header("Access-Control-Max-Age", "600")
+
+    def do_OPTIONS(self):
+        if self.headers.get("Host", "") not in HOSTS or not self._site():
+            return self._json(403, {"error": "Only this app can use the helper."})
+        self._send(204, b"", "text/plain")
 
     def _json(self, code, obj):
         self._send(code, json.dumps(obj).encode(), "application/json")
@@ -381,10 +420,10 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Host", "") not in HOSTS:
             self._json(403, {"error": "Wrong host."}); return False
         o = self.headers.get("Origin")
-        if o and o not in ORIGINS:
+        if o and o not in ORIGINS and o not in SITES:
             self._json(403, {"error": "Only this app can use the helper."}); return False
         site = self.headers.get("Sec-Fetch-Site")
-        if site and site not in ("same-origin", "none"):
+        if site and site not in ("same-origin", "none") and not (site == "cross-site" and o in SITES):
             self._json(403, {"error": "Only this app can use the helper."}); return False
         if need_token and not secrets.compare_digest(self.headers.get("X-Studio-Token", ""), TOKEN):
             self._json(401, {"error": "Missing or wrong helper token. Reload the page."}); return False
@@ -427,6 +466,22 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if not path.startswith("/api/"):
             return self._json(404, {"error": "Not found."})
+        if path == "/api/pair":
+            if not self._guard(need_token=False):
+                return
+            if not self._site():
+                return self._json(403, {"error": "Pairing is only for a deployed site you allowed with --allow."})
+            try:
+                code = str(self._body(2000).get("code", "")).replace("-", "").replace(" ", "").upper()
+            except Exception:  # noqa: BLE001
+                return self._json(400, {"error": "Bad request."})
+            if PAIR_FAILS["n"] >= 5:
+                return self._json(429, {"error": "Too many wrong codes. Restart the helper to get a new code."})
+            if not secrets.compare_digest(code, PAIR_CODE):
+                PAIR_FAILS["n"] += 1
+                return self._json(403, {"error": "That code is not right. Check the terminal where the helper is running."})
+            PAIR_FAILS["n"] = 0
+            return self._json(200, {"token": TOKEN})
         if not self._guard():
             return
         try:
@@ -472,6 +527,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             if path == "/api/session":
+                flags = {"edge": bool(edge_tts), "claudeInstalled": bool(find_claude()), "ffmpeg": bool(FFMPEG and FFPROBE), "speech": bool(WhisperModel)}
+                if self._site():  # a deployed site you allowed: it gets the token only after pairing
+                    return self._json(200, dict(flags, paired=False))
                 return self._json(200, {"token": TOKEN, "edge": bool(edge_tts), "claudeInstalled": bool(find_claude()), "ffmpeg": bool(FFMPEG and FFPROBE), "speech": bool(WhisperModel)})
             if path == "/api/claude/status":
                 return self._json(200, claude_status())
@@ -491,6 +549,11 @@ if __name__ == "__main__":
     print(f"  Edge voices : {'ready' if edge_tts else 'missing, run ./bridge/start.sh to install'}")
     print(f"  Video frames: {'ready (ffmpeg)' if FFMPEG and FFPROBE else 'needs ffmpeg: brew install ffmpeg'}")
     print(f"  Speech text : {'ready' if WhisperModel else 'off, run ./bridge/start.sh --speech to add it'}")
+    if SITES:
+        print(f"  Deployed site(s) allowed: {', '.join(sorted(SITES))}")
+        print(f"  Pairing code for the site: {PAIR_CODE[:4]}-{PAIR_CODE[4:]}   (changes each time the helper starts)")
+    else:
+        print("  To use this helper from your deployed site: ./bridge/start.sh --allow https://your-site")
     print("\n  Press Ctrl+C to stop.\n")
     try:
         srv.serve_forever()

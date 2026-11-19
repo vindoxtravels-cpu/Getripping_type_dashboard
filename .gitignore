@@ -7,3 +7,4 @@ bridge/__pycache__/
 
 # local secrets
 bridge/.env
+bridge/.sites

@@ -3084,11 +3084,10 @@
     );
     $("#aiSignin").hidden = m !== "signin";
     $("#aiKeyBox").hidden = m !== "key";
-    $('#aiTabs [data-mode="signin"]').hidden = AI.hosted;
     const hn = $("#aiHostNote");
     hn.hidden = !AI.hosted;
     if (AI.hosted)
-      hn.innerHTML = `<div class="state">${svg("link", 16)}<div><b>Use your Claude API key here</b><span>“Sign in with Claude” runs Claude Code on your own computer, so it only works when you open Studio from <code>localhost:5174</code>. This deployed site connects with an API key instead. It stays in your browser and goes straight to Anthropic.</span></div></div>`;
+      hn.innerHTML = `<div class="state">${svg("link", 16)}<div><b>On this deployed site</b><span>Paste your Claude API key below, or use <b>Sign in</b> to connect through Claude Code running on your own computer.</span></div></div>`;
     $("#apiRemove").hidden = !AI.configured() || m !== "key";
   }
   function renderSignin() {
@@ -3096,7 +3095,13 @@
       c = st.claude,
       box = $("#aiSignin");
     let html;
-    if (!st.helper)
+    if (AI.hosted && !st.helper) {
+      html = !st.reachable
+        ? `<div class="state off">${svg("link", 16)}<div><b>Connect to Claude Code on your computer</b><span>This site can use your signed-in Claude Code through the helper. On your computer, in the project folder, run <code>./bridge/start.sh --allow ${esc(location.origin)}</code>, then press Check again. Works in Chrome, Edge and Firefox; Safari blocks it. No API key needed.</span></div></div><div class="row end"><button type="button" class="btn" id="aiHelperCheck">Check again</button></div>`
+        : `<div class="state">${svg("key", 16)}<div><b>Pair this site with your helper</b><span>Enter the pairing code shown in the terminal where the helper is running. It changes every time the helper starts.</span></div></div>
+    <label>Pairing code<input id="aiPairCode" type="text" autocomplete="off" spellcheck="false" placeholder="XXXX-XXXX" maxlength="12"></label>
+    <div class="row end"><button type="button" class="btn primary" id="aiPairBtn">Pair</button></div>`;
+    } else if (!st.helper)
       html = `<div class="state off">${svg("link", 16)}<div><b>The helper isn’t running</b><span>In the project folder run <code>./bridge/start.sh</code>, then open the app from <code>http://localhost:5174</code>.</span></div></div>`;
     else if (!c || !c.installed)
       html = `<div class="state off">${svg("x", 16)}<div><b>Claude Code isn’t installed</b><span>Install it from claude.com/claude-code, then reload this page.</span></div></div>`;
@@ -3107,6 +3112,37 @@
     <label>Model<select id="aiAlias">${AI.ALIASES.map(([v, l]) => `<option value="${v}" ${v === AI.alias() ? "selected" : ""}>${l}</option>`).join("")}</select></label>
     <div class="row end"><button type="button" class="btn primary" id="aiSignTest">Test</button></div>`;
     box.innerHTML = html;
+    const hc = $("#aiHelperCheck");
+    if (hc)
+      hc.onclick = async () => {
+        busy(hc, true, "Checking…");
+        await AI.refresh();
+        busy(hc, false);
+        renderSignin();
+      };
+    const pb = $("#aiPairBtn");
+    if (pb)
+      pb.onclick = async () => {
+        const code = $("#aiPairCode").value.trim();
+        if (!code) {
+          apiMsg("Enter the pairing code first.", "bad");
+          return;
+        }
+        busy(pb, true, "Pairing…");
+        apiMsg("");
+        try {
+          await Helper.pair(code);
+          await AI.refresh();
+          apiMsg("Paired with your computer.", "ok");
+          renderAiTabs();
+          renderSignin();
+          applyAiChange();
+        } catch (err) {
+          apiMsg(err.message, "bad");
+        } finally {
+          busy(pb, false);
+        }
+      };
     const sb = $("#aiSignBtn");
     if (sb) sb.onclick = () => startSignIn(sb);
     const al = $("#aiAlias");
@@ -3180,7 +3216,7 @@
         ? "Ready"
         : "Needs edge-tts"
       : AI.hosted
-        ? "Local only"
+        ? "Pair the helper"
         : "Needs the helper";
     const on = Voice.eleven.configured();
     el.className = "chip " + (on ? "good" : "");

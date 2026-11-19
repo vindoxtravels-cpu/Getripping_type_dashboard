@@ -1,8 +1,15 @@
-/* Talks to the local helper (bridge/server.py). The helper only exists when the app is opened from it,
- * at http://localhost:5174, so every call first checks that it is there.
+/* Talks to the local helper (bridge/server.py), which runs on your computer.
+ *  - Opened from the helper itself (http://localhost:5174): same origin, the helper hands the page a token.
+ *  - Opened from a deployed site: the page reaches the helper at http://127.0.0.1:5174 and pairs with it using the
+ *    code the helper prints in its terminal (start it with ./bridge/start.sh --allow https://your-site).
  */
 (() => {
   "use strict";
+  const LOCAL_PAGE = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(
+    location.hostname,
+  );
+  const BASE = LOCAL_PAGE ? "" : "http://127.0.0.1:5174";
+  const TOKEN_KEY = "rs_helper_token";
   class HelperError extends Error {
     constructor(m, info) {
       super(m);
@@ -12,39 +19,94 @@
   }
   let sess = null,
     probing = null;
+  const stored = () => {
+    try {
+      return sessionStorage.getItem(TOKEN_KEY) || "";
+    } catch (e) {
+      return "";
+    }
+  };
+  const store = (t) => {
+    try {
+      if (t) sessionStorage.setItem(TOKEN_KEY, t);
+      else sessionStorage.removeItem(TOKEN_KEY);
+    } catch (e) {
+      /* storage blocked */
+    }
+  };
 
+  /** { available, reachable, paired, token, ...flags }. "available" means ready to use (has a token). */
   async function session(force) {
     if (sess && !force) return sess;
     if (probing) return probing;
     probing = (async () => {
       try {
-        const r = await fetch("/api/session", { cache: "no-store" });
+        const r = await fetch(BASE + "/api/session", { cache: "no-store" });
         const j = r.ok ? await r.json() : null;
-        sess =
-          j && j.token
-            ? Object.assign({ available: true }, j)
-            : { available: false };
+        if (!j) sess = { available: false, reachable: false, paired: false };
+        else if (j.token)
+          sess = Object.assign(
+            { available: true, reachable: true, paired: true },
+            j,
+          );
+        else {
+          const t = stored();
+          sess = Object.assign({}, j, {
+            reachable: true,
+            paired: !!t,
+            available: !!t,
+            token: t,
+          });
+        }
       } catch (e) {
-        sess = { available: false };
+        sess = { available: false, reachable: false, paired: false };
       }
       probing = null;
       return sess;
     })();
     return probing;
   }
+  /** Pair this deployed site with the helper using the code shown in the helper's terminal. */
+  async function pair(code) {
+    let r;
+    try {
+      r = await fetch(BASE + "/api/pair", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+    } catch (e) {
+      throw new HelperError(
+        "Could not reach the helper on your computer. Is it running, with --allow for this site?",
+        { offline: true },
+      );
+    }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.token)
+      throw new HelperError(j.error || "Pairing failed.", { status: r.status });
+    store(j.token);
+    return session(true);
+  }
+  function unpair() {
+    store("");
+    sess = null;
+  }
   async function request(path, init, expect) {
     const s = await session();
     if (!s.available)
       throw new HelperError(
-        /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)
+        LOCAL_PAGE
           ? "The helper is not running. In the project folder run ./bridge/start.sh and open the app from http://localhost:5174."
-          : "That feature runs on your own computer (Edge voices, speech-to-text). On this site, use an ElevenLabs key for voice-overs; video rendering works here as it is.",
+          : s.reachable
+            ? "Pair this site with the helper first (use the code shown in the helper's terminal)."
+            : "The helper isn't reachable. On your computer run ./bridge/start.sh --allow " +
+              location.origin,
         { offline: true },
       );
     init.headers = Object.assign({ "X-Studio-Token": s.token }, init.headers);
     let r;
     try {
-      r = await fetch(path, init);
+      r = await fetch(BASE + path, init);
     } catch (e) {
       sess = null;
       throw new HelperError(
@@ -59,7 +121,10 @@
       } catch (e) {
         /* not json */
       }
-      if (r.status === 401) sess = null; // the helper restarted: fetch a new token next time
+      if (r.status === 401) {
+        if (!LOCAL_PAGE) store(""); // the helper restarted: pair again
+        sess = null; // fetch a new token next time
+      }
       throw new HelperError(msg, { status: r.status });
     }
     return expect === "bytes" ? r.arrayBuffer() : r.json();
@@ -87,7 +152,11 @@
     session,
     call,
     upload,
+    pair,
+    unpair,
     HelperError,
+    base: BASE,
+    hosted: !LOCAL_PAGE,
     info: () => sess,
     available: async () => (await session()).available,
   };

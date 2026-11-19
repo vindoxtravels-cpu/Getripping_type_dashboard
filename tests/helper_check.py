@@ -58,8 +58,8 @@ cat > "{tmp}/last_prompt"; echo "$@" > "{tmp}/last_args"; echo "${{ANTHROPIC_API
 """)
     stub.chmod(stub.stat().st_mode | stat.S_IEXEC)
     port = free_port()
-    env = dict(os.environ, PORT=str(port), CLAUDE_BIN=str(stub), ANTHROPIC_API_KEY="must-not-be-used")
-    proc = subprocess.Popen([sys.executable, str(ROOT / "bridge" / "server.py")], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    env = dict(os.environ, PORT=str(port), CLAUDE_BIN=str(stub), ANTHROPIC_API_KEY="must-not-be-used", STUDIO_SITES="https://site.example", PYTHONUNBUFFERED="1")
+    proc = subprocess.Popen([sys.executable, str(ROOT / "bridge" / "server.py")], env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     base = f"http://localhost:{port}"
     try:
         for _ in range(40):
@@ -155,6 +155,36 @@ cat > "{tmp}/last_prompt"; echo "$@" > "{tmp}/last_args"; echo "${{ANTHROPIC_API
         check("download refuses a look-alike host", "only downloads" in str(attempt("https://cdninstagram.com.evil.example/a.mp4", "https://cdninstagram.com.evil.example/a.mp4", b"V")))
         check("download refuses a redirect to another host", "only downloads" in str(attempt("https://a.fbcdn.net/a.mp4", "https://evil.example/a.mp4", b"V")))
         check("download refuses an oversized video", "too large" in str(attempt("https://a.fbcdn.net/a.mp4", "https://a.fbcdn.net/a.mp4", b"x" * 100, limit=10)))
+        # a deployed site you allowed: preflight, no token until paired, pairing code from the terminal
+        SITE = "https://site.example"
+        LOCALH = {"Host": f"127.0.0.1:{port}"}
+        code = ""
+        for line in iter(proc.stdout.readline, ""):
+            if "Pairing code" in line:
+                code = line.split(":")[1].split()[0]
+                break
+        check("the helper prints a pairing code when a site is allowed", len(code.replace("-", "")) == 8, code)
+        st, _, hdr = req(base, "/api/session", "OPTIONS", dict(LOCALH, Origin=SITE, **{"Access-Control-Request-Method": "GET", "Access-Control-Request-Private-Network": "true"}))
+        check("preflight from an allowed site is accepted (incl. private network)", st == 204 and hdr.get("Access-Control-Allow-Origin") == SITE and hdr.get("Access-Control-Allow-Private-Network") == "true", (st, hdr))
+        st, _, _ = req(base, "/api/session", "OPTIONS", dict(LOCALH, Origin="https://evil.example"))
+        check("preflight from any other site is refused", st == 403, st)
+        st, body_, hdr = req(base, "/api/session", headers=dict(LOCALH, Origin=SITE, **{"Sec-Fetch-Site": "cross-site"}))
+        j_ = json.loads(body_)
+        check("an allowed site gets no token before pairing", st == 200 and "token" not in j_ and j_.get("paired") is False and hdr.get("Access-Control-Allow-Origin") == SITE, (st, j_))
+        st, _, _ = req(base, "/api/claude/status", headers=dict(LOCALH, Origin=SITE, **{"Sec-Fetch-Site": "cross-site"}))
+        check("an allowed site still needs the token for everything else", st == 401, st)
+        st, _, _ = req(base, "/api/pair", "POST", dict(LOCALH, Origin=SITE, **{"Content-Type": "application/json", "Sec-Fetch-Site": "cross-site"}), b'{"code":"WRONGCODE"}')
+        check("a wrong pairing code is refused", st == 403, st)
+        st, _, _ = req(base, "/api/pair", "POST", {"Content-Type": "application/json"}, json.dumps({"code": code}).encode())
+        check("pairing is only for an allowed site, not a bare request", st in (400, 403), st)
+        st, body_, _ = req(base, "/api/pair", "POST", dict(LOCALH, Origin=SITE, **{"Content-Type": "application/json", "Sec-Fetch-Site": "cross-site"}), json.dumps({"code": code}).encode())
+        tok = json.loads(body_).get("token", "")
+        check("the right code returns the token", st == 200 and tok == sess["token"], st)
+        st, body_, _ = req(base, "/api/claude/status", headers=dict(LOCALH, Origin=SITE, **{"Sec-Fetch-Site": "cross-site", "X-Studio-Token": tok}))
+        check("with the token the allowed site can use the helper", st == 200, (st, body_[:100]))
+        for _ in range(6):
+            st, _, _ = req(base, "/api/pair", "POST", dict(LOCALH, Origin=SITE, **{"Content-Type": "application/json", "Sec-Fetch-Site": "cross-site"}), b'{"code":"AAAAAAAA"}')
+        check("repeated wrong codes lock pairing", st == 429, st)
         # Composio sign-in relay: fixed fields to a fixed address, this site only
         sent = []
         class FakeResp:

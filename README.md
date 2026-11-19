@@ -114,14 +114,24 @@ npx wrangler deploy
 
 What works on the deployed site, and what needs your computer:
 
-| Feature                             | Deployed                                                                                            | Local helper                    |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------- |
-| Render videos (MP4/WebM, 9:16)      | Yes, in your browser                                                                                | Yes                             |
-| Templates, formats, effects         | Yes                                                                                                 | Yes                             |
-| Claude (scripts, direction, vision) | **API key** (Sign in with Claude can't work on a website: it runs Claude Code on your own computer) | Sign in with Claude, or API key |
-| Watch a reel video                  | Yes: frames cut in the browser (no speech-to-text)                                                  | ffmpeg frames + speech-to-text  |
-| Voice-over                          | ElevenLabs key                                                                                      | Edge voices or ElevenLabs       |
-| Instagram insights                  | Yes: sign in with Composio                                                                          | Yes: sign in with Composio      |
+| Feature                             | Deployed                                                                                       | Local helper                    |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------- |
+| Render videos (MP4/WebM, 9:16)      | Yes, in your browser                                                                           | Yes                             |
+| Templates, formats, effects         | Yes                                                                                            | Yes                             |
+| Claude (scripts, direction, vision) | Sign in with Claude **through your own computer** (pair with the helper, below), or an API key | Sign in with Claude, or API key |
+| Watch a reel video                  | Yes: frames cut in the browser (no speech-to-text)                                             | ffmpeg frames + speech-to-text  |
+| Voice-over                          | ElevenLabs key                                                                                 | Edge voices or ElevenLabs       |
+| Instagram insights                  | Yes: sign in with Composio                                                                     | Yes: sign in with Composio      |
+
+### Sign in with Claude on the deployed site
+
+A website can't sign in to Claude by itself: Anthropic's sign-in is for Claude Code and its own apps, and a hosted page must use an API key. What does work is your own Claude Code on your own computer, reached through the helper:
+
+1. On your computer, in the project folder: `./bridge/start.sh --allow https://your-site.workers.dev` (once; the site is remembered in `bridge/.sites`).
+2. The helper prints a **pairing code**. Open the deployed site, go to **Claude → Sign in**, enter the code and press **Pair**.
+3. Claude Code, Edge voices, ffmpeg frames and speech-to-text now work from the deployed site, using your Claude plan. No API key.
+
+Safety: only sites you allow can reach the helper; a site gets no token until you enter the code (a new random code every time the helper starts, five wrong tries lock it); everything else still needs that token; and the helper still listens on `127.0.0.1` only. The token lives in that tab's `sessionStorage`. It needs the helper running whenever you use it, and it works in Chrome, Edge and Firefox (Chrome may ask to allow access to devices on your network); Safari blocks a secure page from reaching the helper. With no helper, use an API key.
 
 ## Video formats and templates
 
@@ -197,6 +207,7 @@ A rule-based score out of 100, not a trained model. It starts at 100 and loses p
 - `tools.js`: pure logic with no page code: link parsing, script splitting, paste handling, hook analysis and the learning loop
 - `tests/tools.test.js`: unit tests for `tools.js`. Run `node tests/tools.test.js`
 - `tests/helper_check.py`: checks the helper's security, sign-in plumbing and OAuth relay. Run `python3 tests/helper_check.py`
+- `tests/helper.test.js`: checks how a deployed site pairs with the helper. Run `node tests/helper.test.js`
 - `tests/worker.test.mjs`: checks the Worker's sign-in relay. Run `node tests/worker.test.mjs`
 - `tests/instagram.test.js`: checks the Composio sign-in and Instagram client against a stand-in for Composio. Run `node tests/instagram.test.js`
 

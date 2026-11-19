@@ -31,7 +31,7 @@
   /* "Sign in with Claude" runs Claude Code on your own computer, so it can only work from localhost. */
   const HOSTED = !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
   const state = {
-    mode: HOSTED ? "key" : "signin",
+    mode: HOSTED ? "key" : "signin", // a deployed site starts on the API key until it is paired with the helper
     key: "",
     model: MODELS[0][0],
     alias: "sonnet",
@@ -51,7 +51,7 @@
   (function load() {
     try {
       const p = JSON.parse(localStorage.getItem(PREF) || "{}");
-      if (p.mode && !HOSTED) state.mode = p.mode;
+      if (p.mode) state.mode = p.mode;
       if (p.model) state.model = p.model;
       if (p.alias) state.alias = p.alias;
     } catch (e) {
@@ -130,6 +130,9 @@
       const c = await Helper.call("/api/claude/status");
       state.claude = c;
       state.ready = !!(c.installed && c.loggedIn);
+      /* a deployed site that has just been paired with a signed-in helper uses it unless you chose an API key */
+      if (HOSTED && state.ready && !state.key && state.mode === "key")
+        state.mode = "signin";
     } catch (e) {
       state.claude = null;
       state.ready = false;
@@ -142,6 +145,8 @@
       mode: state.mode,
       ready: configured(),
       helper: !!(h && h.available),
+      reachable: !!(h && h.reachable),
+      paired: !!(h && h.paired),
       claude: state.claude,
       hasKey: !!state.key,
       alias: state.alias,
@@ -423,7 +428,7 @@ Return {"title":"...","hook":"...","body":["..."],"comment":"...","breakdown":[{
     hosted: HOSTED,
     mode: () => state.mode,
     setMode(m) {
-      state.mode = m === "key" || HOSTED ? "key" : "signin";
+      state.mode = m === "key" ? "key" : "signin";
       persist();
     },
     alias: () => state.alias,

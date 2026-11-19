@@ -93,7 +93,8 @@
     const headers = { "content-type": contentType };
     try {
       const h = window.Helper ? await window.Helper.session() : null;
-      if (h && h.available) headers["X-Studio-Token"] = h.token;
+      if (h && h.available && window.Helper.base === "")
+        headers["X-Studio-Token"] = h.token; // only the helper on this computer, never a deployed site
     } catch (e) {
       /* no helper */
     }
