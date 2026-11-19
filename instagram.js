@@ -485,7 +485,7 @@
       tool: "INSTAGRAM_GET_IG_USER_MEDIA",
       args: {
         ig_user_id: "me",
-        limit: 50,
+        limit: 25,
         fields:
           "id,caption,media_type,media_product_type,permalink,thumbnail_url,media_url,timestamp,like_count,comments_count,insights.metric(views,reach,saved,shares,total_interactions)",
       },
