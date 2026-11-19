@@ -162,6 +162,167 @@
       : THEMES.slice();
   };
 
+  /* ---------- template packs: data-only templates loaded from a GitHub repo (no code is ever run from them) ---------- */
+  const STYLES = ["orbs", "grid", "scan", "dots", "rays", "waves", "confetti"];
+  const LOOKS = [
+    "minimal",
+    "luxury",
+    "brutal",
+    "collage",
+    "wash",
+    "news",
+    "hud",
+    "vapor",
+  ];
+  const FACES = { sans: FONT, serif: SERIF, mono: MONO };
+  const WEIGHTS = [
+    "400",
+    "500",
+    "600",
+    "700",
+    "800",
+    "900",
+    "italic 500",
+    "italic 600",
+    "italic 700",
+  ];
+  const HEX = /^#[0-9a-fA-F]{6}$/;
+  const TPL_KEY = "rs_templates";
+  const BUILTIN = new Set(THEMES.map((t) => t.name));
+  const imported = []; // validated specs, saved in this browser
+  /** Check one template spec. Returns { ok, theme, spec } or { ok: false, error }. */
+  function checkTemplate(raw) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw))
+      return { ok: false, error: "not a template object" };
+    const name = typeof raw.name === "string" ? raw.name.trim() : "";
+    if (!name || name.length > 40)
+      return { ok: false, error: "needs a name of up to 40 characters" };
+    if (BUILTIN.has(name))
+      return { ok: false, error: `"${name}" is a built-in template name` };
+    for (const k of ["bg", "fg", "ac"])
+      if (!HEX.test(raw[k] || ""))
+        return {
+          ok: false,
+          error: `${name}: "${k}" must be a colour like #112233`,
+        };
+    const ac2 = raw.ac2 == null ? raw.ac : raw.ac2;
+    if (!HEX.test(ac2))
+      return {
+        ok: false,
+        error: `${name}: "ac2" must be a colour like #112233`,
+      };
+    const style = raw.style == null ? "orbs" : raw.style;
+    if (!STYLES.includes(style))
+      return {
+        ok: false,
+        error: `${name}: style must be one of ${STYLES.join(", ")}`,
+      };
+    const extra = {};
+    if (raw.look != null) {
+      if (!LOOKS.includes(raw.look))
+        return {
+          ok: false,
+          error: `${name}: look must be one of ${LOOKS.join(", ")}`,
+        };
+      extra.look = raw.look;
+    }
+    let font = null;
+    if (raw.font != null) {
+      const f = raw.font;
+      if (!f || !FACES[f.family] || !WEIGHTS.includes(f.weight || "800"))
+        return {
+          ok: false,
+          error: `${name}: font needs family (sans, serif or mono) and a weight like 700 or italic 600`,
+        };
+      font = { family: f.family, weight: f.weight || "800" };
+      extra.face = [font.weight, FACES[font.family]];
+    }
+    const formats = Array.isArray(raw.formats)
+      ? raw.formats
+          .filter((f) => FORMATS.some((x) => x.id === f && x.themes))
+          .slice(0, 8)
+      : [];
+    const spec = {
+      name,
+      bg: raw.bg,
+      fg: raw.fg,
+      ac: raw.ac,
+      ac2,
+      style,
+      look: extra.look,
+      font,
+      formats,
+    };
+    return {
+      ok: true,
+      theme: T(name, raw.bg, raw.fg, raw.ac, ac2, style, extra),
+      spec,
+    };
+  }
+  function placeTemplate(theme, formats) {
+    const i = THEMES.findIndex((t) => t.name === theme.name);
+    if (i >= 0) THEMES.splice(i, 1);
+    THEMES.push(theme);
+    FORMATS.forEach((f) => {
+      if (!f.themes) return;
+      const at = f.themes.indexOf(theme.name);
+      if (at >= 0) f.themes.splice(at, 1);
+      if (formats.includes(f.id)) f.themes.push(theme.name);
+    });
+  }
+  const saveTemplates = () => {
+    try {
+      localStorage.setItem(
+        TPL_KEY,
+        JSON.stringify({ specs: imported, repo: tplRepo }),
+      );
+    } catch (e) {
+      /* storage blocked */
+    }
+  };
+  let tplRepo = "";
+  /** Add checked templates. Returns { added, rejected: [reason] }. */
+  function addTemplates(list, repo) {
+    const out = { added: [], rejected: [] };
+    list.forEach((raw) => {
+      const r = checkTemplate(raw);
+      if (!r.ok) return out.rejected.push(r.error);
+      placeTemplate(r.theme, r.spec.formats);
+      const j = imported.findIndex((x) => x.name === r.spec.name);
+      if (j >= 0) imported.splice(j, 1);
+      imported.push(r.spec);
+      out.added.push(r.spec.name);
+    });
+    if (repo) tplRepo = repo;
+    if (out.added.length) saveTemplates();
+    return out;
+  }
+  function removeTemplates() {
+    imported.splice(0).forEach((spec) => {
+      const i = THEMES.findIndex((t) => t.name === spec.name);
+      if (i >= 0) THEMES.splice(i, 1);
+      FORMATS.forEach((f) => {
+        const at = f.themes ? f.themes.indexOf(spec.name) : -1;
+        if (at >= 0) f.themes.splice(at, 1);
+      });
+    });
+    tplRepo = "";
+    saveTemplates();
+  }
+  try {
+    const saved = JSON.parse(localStorage.getItem(TPL_KEY) || "null");
+    if (saved && Array.isArray(saved.specs)) {
+      tplRepo = typeof saved.repo === "string" ? saved.repo : "";
+      addTemplates(saved.specs);
+    }
+  } catch (e) {
+    /* nothing saved */
+  }
+  const importedTemplates = () => ({
+    names: imported.map((x) => x.name),
+    repo: tplRepo,
+  });
+
   /* ---------- effects ---------- */
   const DEFAULT_FX = {
     caption: "pop",
@@ -1690,6 +1851,12 @@
     formatById,
     themesFor,
     themeByName,
+    checkTemplate,
+    addTemplates,
+    removeTemplates,
+    importedTemplates,
+    STYLES,
+    LOOKS,
     DEFAULT_FX,
     FX_OPTIONS,
     PRESETS,

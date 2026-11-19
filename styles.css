@@ -3320,3 +3320,15 @@ textarea {
     transform: none;
   }
 }
+
+pre.code {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  overflow: auto;
+  margin: 8px 0;
+}

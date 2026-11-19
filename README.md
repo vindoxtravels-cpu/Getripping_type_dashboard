@@ -133,6 +133,24 @@ Pick **What kind of video?** (Faceless, Comic & cartoon, Explainer, Cinematic, N
 
 Templates live in `THEMES` in `video.js`. Add one with a single line, for example `T("Name", background, text, accent, second accent, "orbs", { look: "hud", face: ["700", MONO] })`. A template with a `look` gets its own decoration (frames, tickers, stamps, tape and so on); add a `case` for it in `drawLook()`. List it under one or more formats in `FORMATS`. Included looks: Minimal, Luxury, Brutalist, Collage, Watercolour, Newsroom, Sci-fi HUD and Vaporwave.
 
+### Template packs from GitHub
+
+You don't have to edit code to add templates. In **Studio → Templates**, paste a public GitHub repository (`owner/repo`, or a link to a folder in it). Studio reads the `.json` files in its `templates/` folder and adds them to your styles and formats. They are kept in this browser; **Remove imported** clears them. Templates are data only (colours, a background `style`, an optional built-in `look`, a `font`, and `formats` to list them under), so nothing from the repository is ever run as code. Private repositories aren't supported. `templates/sample-pack.json` in this repo is a working example (connect `vindoxtravels-cpu/Getripping_type_dashboard` to try it).
+
+```json
+{
+  "name": "Noir Mono",
+  "bg": "#0a0a0a",
+  "fg": "#f2f2f2",
+  "ac": "#ff4d4d",
+  "ac2": "#ffffff",
+  "style": "scan",
+  "look": "hud",
+  "font": { "family": "mono", "weight": "700" },
+  "formats": ["faceless", "cinematic"]
+}
+```
+
 ## Learning from results
 
 Studio learns which creative choices earn more, in a simple loop:
@@ -193,6 +211,8 @@ A rule-based score out of 100, not a trained model. It starts at 100 and loses p
 - `video.js`: the video engine (scene planner, animated renderer, effects, recorder, beat synthesizer)
 - `instagram.js`: the Instagram client (multiple accounts, through Composio)
 - `worker.js`, `wrangler.jsonc`, `.assetsignore`: the Cloudflare deployment and its Composio proxy
+- `templates.js`: loads template packs from a GitHub repository
+- `templates/`: a sample template pack
 - `frames.js`: cuts a video into key frames in the browser (used when the helper isn't running)
 - `ai.js`: the Claude client (sign-in through the helper, or an API key)
 - `voice.js`: voice-over generation (Edge, ElevenLabs), joining, WAV export
@@ -201,6 +221,7 @@ A rule-based score out of 100, not a trained model. It starts at 100 and loses p
 - `tools.js`: pure logic with no page code: link parsing, script splitting, paste handling, hook analysis and the learning loop
 - `tests/tools.test.js`: unit tests for `tools.js`. Run `node tests/tools.test.js`
 - `tests/helper_check.py`: checks the helper's security, sign-in plumbing and Composio proxy. Run `python3 tests/helper_check.py`
+- `tests/templates.test.js`: checks the template-pack loader. Run `node tests/templates.test.js`
 - `tests/worker.test.mjs`: checks the Worker's proxy (passcode, allowed tools, origin checks). Run `node tests/worker.test.mjs`
 
 Research on the reference landing page is on the [`rea-output` branch](../../tree/rea-output/2026-11-18-getripping-landing).

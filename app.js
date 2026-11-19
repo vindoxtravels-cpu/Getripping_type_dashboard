@@ -1402,7 +1402,7 @@
       <section class="panel">
         <div class="ph"><h3>${esc(sc.title)}</h3><span class="score-pill ${scoreClass(vir.score)}">Virality ${vir.score}</span></div>
         <div class="lab">Style</div>
-        <div class="fmtrow tight">${formatBar("fmtBarS")}</div>
+        <div class="fmtrow tight">${formatBar("fmtBarS")}<button type="button" class="btn sm" id="tplBtn">${svg("plus", 14)} Templates</button></div>
         <div class="themes" id="themes">${themeList(sc)
           .map(
             (t) =>
@@ -1473,6 +1473,7 @@
       viewProduction();
     };
     bindFormat("fmtBarS", () => viewProduction());
+    $("#tplBtn").onclick = openTemplates;
     $$("#themes [data-theme]").forEach(
       (b) =>
         (b.onclick = () =>
@@ -3296,6 +3297,66 @@
     renderVoiceState();
     if (onStage("production")) viewProduction();
   };
+
+  /* Template packs from a GitHub repository */
+  const tpld = $("#tplDialog");
+  const tplMsg = (t, k) => noteTo("#tplMsg", t, k);
+  function renderTplState() {
+    const st = RV.importedTemplates();
+    $("#tplState").innerHTML = st.names.length
+      ? `<div class="state ok">${svg("check", 16)}<div><b>${st.names.length} imported template${st.names.length === 1 ? "" : "s"}</b><span>${esc(st.names.join(", "))}${st.repo ? ` · from ${esc(st.repo)}` : ""}</span></div></div>`
+      : "";
+    $("#tplRemove").hidden = !st.names.length;
+  }
+  function openTemplates() {
+    [dlg, apid, impd, gend, igd].forEach((d) => {
+      if (d.open) d.close();
+    });
+    $("#tplRepo").value = RV.importedTemplates().repo;
+    tplMsg("");
+    renderTplState();
+    tpld.showModal();
+  }
+  $("#tplGo").onclick = async (e) => {
+    const btn = e.currentTarget,
+      repo = $("#tplRepo").value.trim();
+    busy(btn, true, "Loading…");
+    tplMsg("");
+    try {
+      const pack = await Templates.fetchPack(repo);
+      const r = RV.addTemplates(pack.templates, repo);
+      const bits = [];
+      if (r.added.length)
+        bits.push(`Added ${r.added.length}: ${r.added.join(", ")}.`);
+      const skipped = [...pack.errors, ...r.rejected];
+      if (skipped.length)
+        bits.push(
+          `Skipped ${skipped.length}: ${skipped.slice(0, 4).join("; ")}${skipped.length > 4 ? "…" : ""}`,
+        );
+      tplMsg(
+        bits.join(" ") || "Nothing to add.",
+        r.added.length ? "ok" : "bad",
+      );
+      renderTplState();
+    } catch (err) {
+      tplMsg(err.message, "bad");
+    } finally {
+      busy(btn, false);
+    }
+  };
+  $("#tplRemove").onclick = () => {
+    if (!confirm("Remove all imported templates from this browser?")) return;
+    RV.removeTemplates();
+    S.scripts.forEach((sc) => {
+      if (!themeByName(sc.style.theme)) sc.style.theme = fmtThemes()[0].name;
+    });
+    save();
+    tplMsg("Imported templates removed.");
+    renderTplState();
+  };
+  tpld.addEventListener("close", () => {
+    if (onStage("production")) render();
+  });
 
   /* Instagram accounts, connected through Composio */
   const igd = $("#igDialog");

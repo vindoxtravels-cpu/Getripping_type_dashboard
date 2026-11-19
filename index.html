@@ -380,6 +380,65 @@
       </form>
     </dialog>
 
+    <dialog id="tplDialog">
+      <form method="dialog" class="dlg">
+        <h3>Template packs</h3>
+        <p class="muted">
+          Connect a public GitHub repository of templates. Studio reads the
+          <code>.json</code> files in its <code>templates/</code> folder and
+          adds them to your styles. Templates are only data (colours, a
+          background, a look, a font); nothing from the repository is ever run
+          as code.
+        </p>
+        <div id="tplState"></div>
+        <label
+          >GitHub repository
+          <input
+            id="tplRepo"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="owner/repo, or a link to a folder in it"
+          />
+        </label>
+        <p class="note" id="tplMsg" role="status"></p>
+        <details class="how">
+          <summary>What goes in a template file?</summary>
+          <pre class="code">
+{
+  "name": "Noir Mono",
+  "bg": "#0a0a0a", "fg": "#f2f2f2",
+  "ac": "#ff4d4d", "ac2": "#ffffff",
+  "style": "scan",
+  "look": "hud",
+  "font": { "family": "mono", "weight": "700" },
+  "formats": ["faceless", "cinematic"]
+}</pre>
+          <p>
+            <code>style</code>: orbs, grid, scan, dots, rays, waves or confetti.
+            <code>look</code> (optional): minimal, luxury, brutal, collage,
+            wash, news, hud or vapor. A file can hold one template, a list, or
+            <code>{"templates": [...]}</code>.
+          </p>
+        </details>
+        <div class="row end">
+          <button value="cancel" class="btn ghost">Close</button>
+          <button
+            type="button"
+            class="linkbtn danger"
+            id="tplRemove"
+            style="margin-right: auto"
+            hidden
+          >
+            Remove imported
+          </button>
+          <button type="button" class="btn primary" id="tplGo">
+            Load templates
+          </button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="genDialog">
       <form method="dialog" class="dlg">
         <h3>Make one like this</h3>
@@ -407,6 +466,7 @@
 
     <script src="helper.js"></script>
     <script src="tools.js"></script>
+    <script src="templates.js"></script>
     <script src="frames.js"></script>
     <script src="ai.js"></script>
     <script src="voice.js"></script>
