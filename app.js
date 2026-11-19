@@ -2394,7 +2394,7 @@
   };
   const avatarHtml = (name, url) =>
     url
-      ? `<img src="${esc(url)}" alt="" referrerpolicy="no-referrer">`
+      ? `<img src="${esc(url)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(document.createTextNode('${esc((name[0] || "y").toUpperCase())}'))">`
       : esc((name[0] || "y").toUpperCase());
   function spark(vals, w = 180, h = 44) {
     if (!vals || vals.length < 2) return "";
@@ -2649,7 +2649,7 @@
           x,
           i,
         ) => `<div class="trw" style="--i:${i}"><${x.permalink ? `a href="${esc(x.permalink)}" target="_blank" rel="noopener"` : "div"} class="tr" style="--c1:${x.g ? x.g[0] : "#312e81"};--c2:${x.g ? x.g[1] : "#0b0b1a"}">
-    ${x.thumb ? `<img src="${esc(x.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}<span class="shade"></span>${x.mult ? `<span class="mult">${x.mult}×</span>` : ""}<div class="cap2">${esc(x.title)}<span>${svg("play", 12)} ${fmt(x.views)}</span></div></${x.permalink ? "a" : "div"}>
+    ${x.thumb ? `<img src="${esc(x.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}<span class="shade"></span>${x.mult ? `<span class="mult">${x.mult}×</span>` : ""}<span class="vchip">${svg("eye", 13)} ${fmt(x.views)} views</span><div class="cap2">${esc(x.title)}<span class="rstats">${fmt(x.likes)} likes · ${fmt(x.comments)} comments · ${fmt(x.saves)} saves</span></div></${x.permalink ? "a" : "div"}>
     <button class="btn sm" type="button" data-like="${i}">${svg("wand", 14)} Make one like this</button></div>`,
       )
       .join("");
@@ -3479,6 +3479,15 @@
       renderRailCards();
       if (onStage("analytics") || onStage("calendar") || onStage("production"))
         render();
+      /* load the profile photo and numbers in the background so the photo shows straight away */
+      const first = IG.activeId() && IG.get(IG.activeId());
+      if (first && !first.hasData && first.status === "idle")
+        IG.refresh(first.id, S.igRange)
+          .then(() => {
+            renderRailCards();
+            if (onStage("analytics")) viewAnalytics();
+          })
+          .catch(() => {});
       if (cameBack && !IG.connected()) openIg();
     });
   AI.refresh().then(() => {

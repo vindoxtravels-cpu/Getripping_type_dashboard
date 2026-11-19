@@ -693,21 +693,35 @@
     const found = ((st && st.accounts) || []).filter(
       (a) => !a.status || String(a.status).toUpperCase() === "ACTIVE",
     );
+    const keepers = new Map(accounts);
     accounts.clear();
-    found.forEach((a) =>
-      accounts.set(a.id, {
-        id: a.id,
-        alias: a.alias || "",
-        igId: a.user_info && a.user_info.id ? String(a.user_info.id) : "",
-        igRef: "me",
-        username: (a.user_info && a.user_info.username) || a.alias || "",
-        profile: null,
-        status: "idle",
-        error: null,
-        data: null,
-        fetchedAt: 0,
-      }),
-    );
+    found.forEach((a) => {
+      const old = keepers.get(a.id);
+      accounts.set(
+        a.id,
+        Object.assign(
+          {
+            profile: null,
+            status: "idle",
+            error: null,
+            data: null,
+            fetchedAt: 0,
+            igRef: "me",
+          },
+          old || {},
+          {
+            id: a.id,
+            alias: a.alias || "",
+            igId: a.user_info && a.user_info.id ? String(a.user_info.id) : "",
+            username:
+              (a.user_info && a.user_info.username) ||
+              (old && old.username) ||
+              a.alias ||
+              "",
+          },
+        ),
+      );
+    });
     setup.connected = found.length > 0;
     setup.note = "";
     if (!accounts.has(activeId))
